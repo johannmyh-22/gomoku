@@ -186,6 +186,8 @@ const FILTERS = {
   ttkeep: ORIG_FILTER,  // 置换表跨步保留（见 EXTRA）
   vcttt: ORIG_FILTER,   // VCT 置换表（已过期，见 EXTRA）
   noTT: ORIG_FILTER,    // 反向 patch：合入后的引擎去掉 VCT TT（见 EXTRA）
+  rootsort: ORIG_FILTER, deeper: ORIG_FILTER, partial: ORIG_FILTER,
+  deeppartial: ORIG_FILTER, lv5all: ORIG_FILTER,
   off: `  if(false){}`,
   fix: `  if(cfg.rootFilter && cnt>1){
     var cleanChecked=0, lim=cnt<14?cnt:14;
@@ -325,6 +327,36 @@ const CURRENT_VCT = `function vct(side, depth, lvl){
 }`;
 
 // 变体专属的额外改写
+/* ---------- LV5（地狱级）专项：迭代加深的三处浪费 ----------
+   实测 LV5 单手只用掉 56~74% 的 9 秒预算，maxDepth 写 18 实际只到 12~13 层。
+   三个独立的候选改动，各自都很小： */
+
+// A. 根节点着法从不重排：sortRoot() 只在「弱难度随机」里被调用过，
+//    迭代加深循环里没有。上一层搜出来的分数没有用于给下一层排序，
+//    等于每层都从 genMoves 的初始启发顺序重新搜，alpha-beta 剪枝效率白扔。
+const ROOTSORT = [
+  `    if(nowMs()-searchStart > remain*0.45) break;
+  }`,
+  `    if(nowMs()-searchStart > remain*0.45) break;
+    sortRoot();
+  }`,
+];
+
+// B. 收尾过早：完成一层后若已用掉「剩余预算的 45%」就不再往下搜。
+//    这个阈值偏保守，是 26~44% 预算空转的直接原因。放宽到 65%。
+const DEEPER = [
+  '    if(nowMs()-searchStart > remain*0.45) break;',
+  '    if(nowMs()-searchStart > remain*0.65) break;',
+];
+
+// C. 半层结果全扔：某层搜到一半超时，这层已经搜完的根着法结果被整个丢弃
+//    （`!timeout` 那个条件）。但 rootIteration 在 timeout 时是先 break 再记分的，
+//    已记录的分数都来自搜完的着法，是可用的——标准做法是采纳这个部分结果。
+const PARTIAL = [
+  '    if(bi>=0 && (!timeout || d<=2)){',
+  '    if(bi>=0){',
+];
+
 const EXTRA = {
   // think() 每步都清空整个置换表，上一手搜出来的结果全扔了。改成跨步保留。
   ttkeep: [['  ttClear(); killers.fill(0);', '  killers.fill(0);']],
@@ -341,6 +373,15 @@ const EXTRA = {
     ['function ttClear(){ ttSide.fill(0); vctTtClear(); }', 'function ttClear(){ ttSide.fill(0); }'],
     [CURRENT_VCT, ORIG_VCT],
   ],
+  // LV5 专项（见上面 ROOTSORT / DEEPER / PARTIAL 注释）
+  rootsort: [ROOTSORT],
+  deeper: [DEEPER],
+  partial: [PARTIAL],
+  // 组合。实测（3 个 LV5 局面）：partial 单独是空操作——45% 阈值下搜索基本不会
+  // 「搜到一半超时」，没有半层结果可捡；deeper 单独也不涨深度——多搜的那层超时后整层被丢。
+  // 两者必须配对：放宽阈值去够更深的一层，再把超时那层搜完的部分捡回来。
+  deeppartial: [DEEPER, PARTIAL],
+  lv5all: [ROOTSORT, DEEPER, PARTIAL],
 };
 
 function build(variant) {
