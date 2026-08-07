@@ -184,7 +184,8 @@ const FILTERS = {
   orig: ORIG_FILTER,
   orig2: ORIG_FILTER,   // 与 orig 完全相同，用来测这套 12 局赛制的噪声底
   ttkeep: ORIG_FILTER,  // 置换表跨步保留（见 EXTRA）
-  vcttt: ORIG_FILTER,   // VCT 置换表（见 EXTRA）
+  vcttt: ORIG_FILTER,   // VCT 置换表（已过期，见 EXTRA）
+  noTT: ORIG_FILTER,    // 反向 patch：合入后的引擎去掉 VCT TT（见 EXTRA）
   off: `  if(false){}`,
   fix: `  if(cfg.rootFilter && cnt>1){
     var cleanChecked=0, lim=cnt<14?cnt:14;
@@ -235,23 +236,110 @@ const VCLOCK = [
    'function pvs(side, depth, alpha, beta, ply){\n  nodeCount++; TICKS++;'],
   ['function vcf(side, depth){\n  if(++vcfNodes>vcfLimit) return 0;',
    'function vcf(side, depth){\n  TICKS++;\n  if(++vcfNodes>vcfLimit) return 0;'],
-  // VCT 置换表合入 index.html 后 vct() 开头变了（中止要先给 vctAbortMark 计数，见 PROGRESS）
-  ['function vct(side, depth, lvl){\n  if(++vctNodes>vctLimit){ vctAbortMark++; return 0; }',
-   'function vct(side, depth, lvl){\n  TICKS++;\n  if(++vctNodes>vctLimit){ vctAbortMark++; return 0; }'],
+  // vct() 有两种可能的开头：合入 TT 后的版本（中止要先给 vctAbortMark 计数），
+  // 或者 noTT 变体反向 patch 回去的原版——两种都可能出现在 rawEngine() 里，都要能注入
+  [
+    ['function vct(side, depth, lvl){\n  if(++vctNodes>vctLimit){ vctAbortMark++; return 0; }',
+     'function vct(side, depth, lvl){\n  TICKS++;\n  if(++vctNodes>vctLimit){ vctAbortMark++; return 0; }'],
+    ['function vct(side, depth, lvl){\n  if(++vctNodes>vctLimit) return 0;',
+     'function vct(side, depth, lvl){\n  TICKS++;\n  if(++vctNodes>vctLimit) return 0;'],
+  ],
   ['  timeout=0; nodeCount=0;', '  timeout=0; nodeCount=0; TICKS=0;'],
 ];
+
+// VCT TT 已经合入 index.html（见 PROGRESS「一之三」），vct() 的真实文本变了。
+// 这里存一份「合入后的原文」，用于 noTT 变体反向 patch 回不带 TT 的版本——
+// 需要继续测「有 TT vs 没 TT」时（比如 5 档），不用再手改 index.html。
+const CURRENT_VCT = `function vct(side, depth, lvl){
+  if(++vctNodes>vctLimit){ vctAbortMark++; return 0; }
+  if((vctNodes&255)===0 && nowMs()>vctDeadline){ vctAbortMark++; return 0; }
+  if(lvl>=30){ vctAbortMark++; return 0; }
+  var opp=3-side, i, k, q;
+  if(fivePoints(side,1)>0) return fpBuf[0];
+  if(depth<=0) return 0;
+  var on=fivePoints(opp,2);
+  if(on>=2) return 0;
+
+  var d2=depth>127?127:depth, ti=vctTtIndex(side);
+  if(vctTtSide[ti]===side && vctTtKey[ti]===hash2 && vctTtDepth[ti]===d2){
+    var tf=vctTtFlag[ti];
+    if(tf===1) return 0;
+    if(tf===2){
+      var hm=vctTtMove[ti];
+      if(board[hm]===EMPTY && forcingKind(side,hm)!==0) return hm;
+    }
+  }
+  var mark=vctAbortMark;
+  var forced = on===1 ? fpBuf[0] : 0;         // 对方有冲四：我只能走那一点
+
+  var S=side===BLACK?SB:SW, base=lvl*64, n=0, kind;
+  for(i=0;i<225;i++){
+    q=CELLS[i];
+    if(board[q]!==EMPTY||adj[q]===0) continue;
+    if(forced && q!==forced) continue;
+    kind=forcingKind(side,q);
+    if(kind===0) continue;
+    if(FORBID && side===BLACK && isForbidden(q)) continue;
+    if(n<64){ atkBuf[base+n]=q; atkSc[base+n]=kind*4000000+S[q]; n++; }
+  }
+  for(i=1;i<n;i++){                            // 冲四优先，其次按威胁分
+    var mq=atkBuf[base+i], ms=atkSc[base+i], j=i-1;
+    while(j>=0&&atkSc[base+j]<ms){ atkBuf[base+j+1]=atkBuf[base+j]; atkSc[base+j+1]=atkSc[base+j]; j--; }
+    atkBuf[base+j+1]=mq; atkSc[base+j+1]=ms;
+  }
+  for(i=0;i<n;i++){
+    q=atkBuf[base+i];
+    var PS4=side===BLACK?PB:PW, sb=q*4, s4=lvl*4;
+    patSave[s4]=PS4[sb]; patSave[s4+1]=PS4[sb+1]; patSave[s4+2]=PS4[sb+2]; patSave[s4+3]=PS4[sb+3];
+    make(q,side);
+    var res=0, w=fivePoints(side,2);
+    if(w>=2) res=q;                            // 做成活四，挡不住
+    else{
+      var nd=genDefense(side,q,w,lvl);
+      if(nd===-1) res=q;                       // 对方因禁手无法防守
+      else if(nd>0){
+        var all=1, dbase=lvl*32;
+        for(k=0;k<nd;k++){
+          var dm=defBuf[dbase+k];
+          make(dm,opp);
+          var r=vct(side,depth-1,lvl+1);
+          unmake(dm,opp);
+          if(!r){ all=0; break; }
+        }
+        if(all) res=q;
+      }
+    }
+    unmake(q,side);
+    if(res){
+      vctTtKey[ti]=hash2; vctTtSide[ti]=side; vctTtDepth[ti]=d2;
+      vctTtFlag[ti]=2; vctTtMove[ti]=res;
+      return res;
+    }
+    if(vctNodes>vctLimit||nowMs()>vctDeadline){ vctAbortMark++; return 0; }
+  }
+  if(vctAbortMark===mark){
+    vctTtKey[ti]=hash2; vctTtSide[ti]=side; vctTtDepth[ti]=d2;
+    vctTtFlag[ti]=1; vctTtMove[ti]=0;
+  }
+  return 0;
+}`;
 
 // 变体专属的额外改写
 const EXTRA = {
   // think() 每步都清空整个置换表，上一手搜出来的结果全扔了。改成跨步保留。
   ttkeep: [['  ttClear(); killers.fill(0);', '  killers.fill(0);']],
-  // VCT 置换表：vct() 换成带 TT 的版本；ttClear() 顺带清 VCT 表——
-  // think() 每步调用一次 ttClear()，且 ENG.clearHistory() 也走 ttClear()，
-  // 两处覆盖到位后 VCT 表天然是「每步清空」的生命周期，跟置换率测量口径一致，
-  // 且跨局不会残留（det.js 的确定性台子依赖这一点，见 PROGRESS）。
+  // 【已过期】VCT 置换表实验变体——TT 已经合入 index.html（见 PROGRESS「一之三」），
+  // ORIG_VCT 匹配不到当前源码了，build('vcttt') 会直接报错。留着做历史记录，
+  // 真要继续测「有 TT vs 没 TT」，用下面的 noTT 反向变体。
   vcttt: [
     ['function ttClear(){ ttSide.fill(0); }', 'function ttClear(){ ttSide.fill(0); vctTtClear(); }'],
     [ORIG_VCT, NEW_VCT],
+  ],
+  // noTT：反向 patch——把合入后的 vct() 换回不带 TT 的版本，用于继续做「有 TT vs 没 TT」
+  // 的 A/B（比如 5 档没测过）。跟 orig 的区别只有这一个函数。
+  noTT: [
+    ['function ttClear(){ ttSide.fill(0); vctTtClear(); }', 'function ttClear(){ ttSide.fill(0); }'],
+    [CURRENT_VCT, ORIG_VCT],
   ],
 };
 
@@ -265,12 +353,16 @@ function build(variant) {
     if (!src.includes(from)) throw new Error('变体改写点未匹配: ' + from.slice(0, 40));
     src = src.replace(from, to);
   }
-  for (const [from, to] of VCLOCK) {
-    if (src.includes(from)) { src = src.replace(from, to); continue; }
-    // 变体的 EXTRA 改写可能已经把 TICKS++ 手动焊进函数头（如 vcttt 的新 vct()）
-    const marker = to.split('\n').slice(0, 2).join('\n');
-    if (src.includes(marker)) continue;
-    throw new Error('虚拟时钟注入点未匹配: ' + from.slice(0, 40));
+  for (const entry of VCLOCK) {
+    const candidates = Array.isArray(entry[0]) ? entry : [entry];
+    let matched = false;
+    for (const [from, to] of candidates) {
+      if (src.includes(from)) { src = src.replace(from, to); matched = true; break; }
+      // 变体的 EXTRA 改写可能已经把 TICKS++ 手动焊进函数头（如 vcttt 的新 vct()）
+      const marker = to.split('\n').slice(0, 2).join('\n');
+      if (src.includes(marker)) { matched = true; break; }
+    }
+    if (!matched) throw new Error('虚拟时钟注入点未匹配: ' + candidates[0][0].slice(0, 40));
   }
   if (variant === 'instr') {
     if (!src.includes(PICK_PATCH[0])) throw new Error('think 末尾 return 未匹配');
