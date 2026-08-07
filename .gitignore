@@ -1,0 +1,4 @@
+.DS_Store
+
+# load.js 从 index.html 现生成的引擎变体，随时可重建，不入库
+scratchpad/eng_*.js
