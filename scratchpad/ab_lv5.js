@@ -74,13 +74,21 @@ let done = 0;
 const startMs = Date.now();
 const workers = [];
 let nextIdx = 0;
+function sendExit(w) {
+  if (w.exitRequested || !w.connected) return;
+  w.exitRequested = true;
+  try { w.send({ type: 'exit' }); } catch (e) { /* 子进程已退出，忽略 */ }
+}
 function assignNext(w) {
-  if (nextIdx >= jobs.length) { w.send({ type: 'exit' }); return; }
+  // 已经打发走的子进程不能再发消息：重复 send 会触发 'error' 事件把主进程带崩
+  // （结果已打印完才崩，不影响数据，但看起来像跑挂了）
+  if (nextIdx >= jobs.length) { sendExit(w); return; }
   w.send(jobs[nextIdx++]);
 }
 
 for (let i = 0; i < WORKERS; i++) {
   const w = fork(path.join(__dirname, 'ab_worker.js'));
+  w.on('error', () => { /* IPC 关闭等，结果已收齐，不必中断 */ });
   w.on('message', (msg) => {
     if (msg.type !== 'result') return;
     done++;
@@ -98,6 +106,6 @@ function finish() {
   console.log('\n=== 结果（左边是变体，右边是出厂 orig；左 > 右 才算有提升） ===');
   for (const [name, r] of Object.entries(results))
     console.log(`${name.padEnd(34)}  ${r.a} : ${r.b}   和 ${r.d}   (共 ${r.a + r.b + r.d} 局)`);
-  workers.forEach(w => w.send({ type: 'exit' }));
+  workers.forEach(sendExit);
   setTimeout(() => process.exit(0), 200);
 }
