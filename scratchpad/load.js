@@ -235,8 +235,9 @@ const VCLOCK = [
    'function pvs(side, depth, alpha, beta, ply){\n  nodeCount++; TICKS++;'],
   ['function vcf(side, depth){\n  if(++vcfNodes>vcfLimit) return 0;',
    'function vcf(side, depth){\n  TICKS++;\n  if(++vcfNodes>vcfLimit) return 0;'],
-  ['function vct(side, depth, lvl){\n  if(++vctNodes>vctLimit) return 0;',
-   'function vct(side, depth, lvl){\n  TICKS++;\n  if(++vctNodes>vctLimit) return 0;'],
+  // VCT 置换表合入 index.html 后 vct() 开头变了（中止要先给 vctAbortMark 计数，见 PROGRESS）
+  ['function vct(side, depth, lvl){\n  if(++vctNodes>vctLimit){ vctAbortMark++; return 0; }',
+   'function vct(side, depth, lvl){\n  TICKS++;\n  if(++vctNodes>vctLimit){ vctAbortMark++; return 0; }'],
   ['  timeout=0; nodeCount=0;', '  timeout=0; nodeCount=0; TICKS=0;'],
 ];
 
