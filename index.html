@@ -1286,45 +1286,56 @@ const BG=(function(){
     a:0.16+rnd()*0.14, pal:i%4,
   });
 
-  let target=0.5, cur=0.5, t=0, W=0, H=0, last=0, raf=0;
+  let target=0.5, cur=0.5, t=0, W=0, H=0, last=0, raf=0, img=null;
   const reduce=window.matchMedia&&window.matchMedia('(prefers-reduced-motion:reduce)').matches;
 
   function resize(){
-    // 1/5 分辨率就够——反正整幅图都是柔和过渡，放大后看不出来
-    W=Math.max(72,Math.round(window.innerWidth/5));
-    H=Math.max(48,Math.round(window.innerHeight/5));
+    // 1/5 分辨率就够——反正整幅图都是柔和过渡，放大后看不出来。
+    // 上限 300x200：底层是逐像素画的，4K 屏下不封顶会白白多花好几倍。
+    W=Math.min(300,Math.max(72,Math.round(window.innerWidth/5)));
+    H=Math.min(200,Math.max(48,Math.round(window.innerHeight/5)));
     el.width=W; el.height=H;
+    img=c.createImageData(W,H);      // 复用，避免每帧重新分配
     paint();
   }
   const smooth=x=>{ x=x<0?0:(x>1?1:x); return x*x*(3-2*x); };
 
+  /* 分界线不是一条竖直线，而是随高度起伏、并随时间流动的曲线 x = edgeAt(y)。
+     两个不同频率的正弦叠加，所以左右宽窄一路变化（这里多一点、那里少一点），像流体。
+     关键：它对每个 y 只有一个取值，于是「曲线左边全是暖、右边全是冷」恒成立——
+     两种颜色各自始终是连通的一整片，绝不会裂成互相分开的色块。 */
+  function edgeAt(ny){
+    return (-0.28+cur*1.66)
+         + 0.105*Math.sin(ny*3.0 + t*0.62)
+         + 0.062*Math.sin(ny*6.9 - t*0.41 + 1.9);
+  }
+
   function paint(){
-    const edge=-0.28+cur*1.66;
-    c.globalCompositeOperation='source-over';
-    // 底层：整幅横向渐变。没有这层的话，色团之间会漏出黑底，看着就是「暗场里的几盏灯」
-    // 而不是一整幅画。取 9 个采样点让分界的调和带自然铺开。
-    const lg=c.createLinearGradient(0,0,W,0);
-    for(let i=0;i<=8;i++){
-      const x=i/8, m=smooth((x-edge)/SOFT+0.5);
-      lg.addColorStop(x,'rgb('+
-        Math.round(WARM_BASE[0]+(COOL_BASE[0]-WARM_BASE[0])*m)+','+
-        Math.round(WARM_BASE[1]+(COOL_BASE[1]-WARM_BASE[1])*m)+','+
-        Math.round(WARM_BASE[2]+(COOL_BASE[2]-WARM_BASE[2])*m)+')');
+    // 底层逐像素画：分界既然是曲线，就没法用一条 createLinearGradient 表达了。
+    // 画布很小（<=300x200），这点循环开销可以忽略。
+    const d=img.data, dr=COOL_BASE[0]-WARM_BASE[0], dg=COOL_BASE[1]-WARM_BASE[1], db=COOL_BASE[2]-WARM_BASE[2];
+    for(let yy=0;yy<H;yy++){
+      const ny=yy/H, ey=edgeAt(ny);
+      const vT=Math.max(0,(0.30-ny)/0.30), vB=Math.max(0,(ny-0.68)/0.32);
+      const dark=1-0.34*vT*vT-0.42*vB*vB;      // 上下压暗，避免整幅平得像色卡
+      let i=(yy*W)<<2;
+      for(let xx=0;xx<W;xx++,i+=4){
+        const m=smooth((xx/W-ey)/SOFT+0.5);
+        d[i]  =(WARM_BASE[0]+dr*m)*dark;
+        d[i+1]=(WARM_BASE[1]+dg*m)*dark;
+        d[i+2]=(WARM_BASE[2]+db*m)*dark;
+        d[i+3]=255;
+      }
     }
-    c.fillStyle=lg; c.fillRect(0,0,W,H);
-    // 上下压暗一点，避免整幅平得像色卡
-    const vg=c.createLinearGradient(0,0,0,H);
-    vg.addColorStop(0,'rgba(0,0,0,.34)'); vg.addColorStop(.45,'rgba(0,0,0,0)');
-    vg.addColorStop(1,'rgba(0,0,0,.42)');
-    c.fillStyle=vg; c.fillRect(0,0,W,H);
+    c.putImageData(img,0,0);
     c.globalCompositeOperation='screen';       // 深底上叠色，像层层罩染
     const R=Math.max(W,H);
     for(const b of blobs){
       const x=(b.bx+Math.sin(t*b.fx+b.ph)*b.ax);
       const y=(b.by+Math.cos(t*b.fy+b.ph*1.7)*b.ay);
-      // 分界线随胜率移动，行程刻意超出画面两侧（见 paint 开头的 edge）：不这样的话，
-      // 一方 95% 时另一端仍会残留对方的色团，「地盘被吃掉」的感觉就出不来。
-      const m=smooth((x-edge)/SOFT+0.5);
+      // 取自己所在高度上的分界值，才能和底层的波形对齐（行程超出画面两侧，
+      // 否则一方 95% 时另一端仍会残留对方色团，「地盘被吃掉」的感觉出不来）
+      const m=smooth((x-edgeAt(y))/SOFT+0.5);
       const wa=WARM[b.pal], co=COOL[b.pal];
       const r=Math.round(wa[0]+(co[0]-wa[0])*m),
             g=Math.round(wa[1]+(co[1]-wa[1])*m),
