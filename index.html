@@ -2,114 +2,310 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>五子棋</title>
+<!-- viewport-fit=cover 让棋盘能用到刘海屏的整宽；不再禁用缩放（user-scalable=no 会挡住
+     视力不好的人放大，而这里并没有会被误触发的手势） -->
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>五子棋 Gomoku · AI</title>
+<meta name="description" content="单文件五子棋 AI：威胁模式表估值、PVS + 置换表搜索、VCF/VCT 完整算杀。零依赖，打开即玩。">
+<meta name="color-scheme" content="dark">
+<meta property="og:type" content="website">
+<meta property="og:title" content="五子棋 Gomoku · AI">
+<meta property="og:description" content="威胁模式表估值 · PVS + 置换表 · VCF/VCT 算杀。单文件、零依赖、打开即玩。">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%23d9a05b'/><circle cx='25' cy='25' r='12.5' fill='%23141418'/><circle cx='40' cy='40' r='12.5' fill='%23fbfbf9'/></svg>">
+<link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%23d9a05b'/><circle cx='25' cy='25' r='12.5' fill='%23141418'/><circle cx='40' cy='40' r='12.5' fill='%23fbfbf9'/></svg>">
 <style>
   :root{
-    --bg:#0e1116; --bg2:#151a22; --line:#232b36; --fg:#e6edf3; --dim:#8b97a8;
-    --acc:#f0a020; --acc2:#4a9eff; --good:#3fb950; --bad:#f85149;
-    --wood:#d9a05b; --wood2:#c98d45;
+    --fg:#f2f6fb; --dim:#a8b6c9; --dimmer:#77869a;
+    --acc:#ffb340; --acc-d:#e8901a; --acc2:#6cb6ff; --good:#4ad66d; --bad:#ff6b5a;
+    --wood:#dda663; --wood2:#c98b45;
+    --r:20px; --r-sm:13px;
+
+    /* 玻璃配方：亮度靠白色叠加，通透感靠 backdrop-filter，边缘靠 inset 高光。
+       三个变量统一控制，改一处全局生效。 */
+    /* 两层：上面是玻璃的白色反光，下面压一层暗底。背景现在很艳，靠这层暗底
+       把文字对比度稳住——比拿黑纱盖住整幅背景好，颜色仍然透得出来。 */
+    --glass-bg:linear-gradient(155deg,rgba(255,255,255,.17),rgba(255,255,255,.06) 55%,rgba(255,255,255,.10)),
+               linear-gradient(0deg,rgba(7,11,19,.46),rgba(7,11,19,.46));
+    --glass-blur:blur(30px) saturate(190%) brightness(1.08);
+    --glass-edge:
+      inset 0 1.5px 0 rgba(255,255,255,.55),    /* 顶缘接光——最能让人认出是玻璃的一笔 */
+      inset 0 -1px 0 rgba(255,255,255,.12),     /* 底缘微反射 */
+      inset 1px 0 0 rgba(255,255,255,.14),
+      inset -1px 0 0 rgba(255,255,255,.14);
+    --glass-drop:0 10px 34px rgba(0,0,0,.42);
   }
   *{box-sizing:border-box;margin:0;padding:0}
-  html,body{height:100%}
+  html{-webkit-text-size-adjust:100%}
   body{
-    background:radial-gradient(1200px 800px at 50% -10%,#1a2130,#0e1116 60%);
+    min-height:100dvh;position:relative;isolation:isolate;
+    background:#070a10;
     color:var(--fg);
-    font:14px/1.5 -apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue",Segoe UI,sans-serif;
+    font:14px/1.55 -apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB",
+         "Microsoft YaHei","Helvetica Neue",Segoe UI,system-ui,sans-serif;
     display:flex;flex-direction:column;align-items:center;
-    padding:16px 12px 32px;gap:14px;-webkit-font-smoothing:antialiased;
+    padding:clamp(12px,3vw,22px) 12px calc(28px + env(safe-area-inset-bottom));
+    gap:16px;-webkit-font-smoothing:antialiased;
   }
-  header{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;justify-content:center}
-  h1{font-size:20px;font-weight:650;letter-spacing:.5px}
+  /* 水粉背景：玻璃背后必须有东西可透，否则只是「亮一点的方块」。
+     用一张低分辨率画布画柔和色团，再由浏览器双线性放大到全屏——放大本身就把色团
+     揉成了水粉那种没有硬边的过渡，比十几个 CSS 渐变便宜得多，也才有条件做动态。
+     颜色由胜率驱动：AI 占优则暖色地盘变大，你占优则冷色变大，交界处两色互相渗透。 */
+  #bg{
+    position:fixed;inset:0;width:100%;height:100%;z-index:-2;pointer-events:none;
+    display:block;
+  }
+  /* 压暗一层，保证玻璃上的文字始终够对比度——光斑再亮也不会糊掉正文 */
+  body::after{
+    content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;
+    background:linear-gradient(180deg,rgba(5,8,14,.16),rgba(5,8,14,.26));
+  }
+
+  /* ---------- 玻璃基类 ---------- */
+  .glass{
+    background:var(--glass-bg);
+    backdrop-filter:var(--glass-blur);
+    -webkit-backdrop-filter:var(--glass-blur);
+    border:1px solid rgba(255,255,255,.18);
+    box-shadow:var(--glass-edge),var(--glass-drop);
+    border-radius:var(--r);
+    position:relative;overflow:hidden;
+  }
+  /* 顶缘再压一道更亮更窄的高光线，模拟玻璃厚度边被照亮 */
+  .glass::after{
+    content:'';position:absolute;left:12%;right:12%;top:0;height:1px;pointer-events:none;
+    background:linear-gradient(90deg,transparent,rgba(255,255,255,.75),transparent);
+  }
+  /* 斜向高光：玻璃表面的镜面反射 */
+  .glass::before{
+    content:'';position:absolute;inset:0;pointer-events:none;border-radius:inherit;
+    background:linear-gradient(118deg,rgba(255,255,255,.26) 0%,rgba(255,255,255,.09) 20%,
+               transparent 40%,transparent 100%);
+  }
+  /* 不支持 backdrop-filter 的浏览器退回实心，不然会变成一片糊看不清字 */
+  @supports not ((backdrop-filter:blur(4px)) or (-webkit-backdrop-filter:blur(4px))){
+    .glass{background:#161c27;border-color:#2a3444}
+    .glass::before{display:none}
+  }
+
+  /* ---------- 头部 ---------- */
+  header{width:100%;max-width:1120px;display:flex;align-items:center;gap:12px;
+    justify-content:space-between;flex-wrap:wrap}
+  .brand{display:flex;align-items:baseline;gap:11px;flex-wrap:wrap}
+  h1{font-size:clamp(17px,2.4vw,21px);font-weight:680;letter-spacing:.4px;white-space:nowrap;
+    text-shadow:0 2px 12px rgba(0,0,0,.5)}
   h1 span{color:var(--acc)}
-  .sub{color:var(--dim);font-size:12px}
-
-  .wrap{display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap;justify-content:center;width:100%;max-width:1080px}
-
-  /* 胜率条 */
-  .wbox{width:100%;max-width:1080px;display:flex;flex-direction:column;gap:7px;transition:opacity .2s}
-  .wbox.busy{opacity:.55}
-  .wbrow{display:flex;justify-content:space-between;align-items:center;font-size:12.5px;color:var(--dim)}
-  .wbl{display:flex;align-items:center;gap:6px}
-  .wbl b{color:var(--fg);font-weight:700;font-variant-numeric:tabular-nums;font-size:14px;min-width:42px}
-  .wbl:last-child b{text-align:right}
-  .sq{width:9px;height:9px;border-radius:2px;display:inline-block}
-  .sq.ai{background:var(--acc)} .sq.me{background:var(--acc2)}
-  .wbnote{font-size:11px;letter-spacing:1px;text-transform:uppercase;opacity:.75}
-  .wb{height:11px;border-radius:6px;overflow:hidden;background:var(--acc2);
-      box-shadow:0 0 0 1px rgba(255,255,255,.09) inset,0 2px 10px rgba(0,0,0,.35)}
-  #wbFill{height:100%;width:50%;background:linear-gradient(90deg,#f0a020,#eb8b3a);
-      transition:width .5s cubic-bezier(.4,0,.2,1)}
-
-  .boardbox{
-    position:relative;border-radius:14px;overflow:hidden;
-    box-shadow:0 18px 50px rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.06);
-    background:linear-gradient(160deg,var(--wood),var(--wood2));
-    flex:0 0 auto;
+  .sub{color:var(--dim);font-size:12px;letter-spacing:.2px}
+  .langbtn{
+    color:var(--fg);border-radius:999px;padding:6px 15px;font-size:12px;font-weight:600;
+    cursor:pointer;font-family:inherit;letter-spacing:.5px;transition:.18s;flex:0 0 auto;
+    background:var(--glass-bg);
+    backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);
+    border:1px solid rgba(255,255,255,.16);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.28),0 4px 14px rgba(0,0,0,.3);
   }
-  canvas{display:block;touch-action:manipulation;cursor:pointer}
+  .langbtn:hover{background:linear-gradient(155deg,rgba(255,255,255,.19),rgba(255,255,255,.08));
+    border-color:rgba(255,255,255,.28)}
+
+  /* ---------- 胜率条 ---------- */
+  .wbox{width:100%;max-width:1120px;display:flex;flex-direction:column;gap:7px;transition:opacity .25s}
+  .wbox.busy{opacity:.5}
+  .wbrow{display:flex;justify-content:space-between;align-items:center;font-size:12.5px;color:var(--dim)}
+  .wbl{display:flex;align-items:center;gap:7px;min-width:0}
+  .wbl b{color:var(--fg);font-weight:700;font-variant-numeric:tabular-nums;font-size:14.5px;min-width:44px;
+    text-shadow:0 1px 8px rgba(0,0,0,.4)}
+  .wbl:last-child b{text-align:right}
+  .sq{width:9px;height:9px;border-radius:2.5px;display:inline-block;flex:0 0 auto}
+  .sq.ai{background:var(--acc);box-shadow:0 0 10px rgba(255,179,64,.7)}
+  .sq.me{background:var(--acc2);box-shadow:0 0 10px rgba(108,182,255,.7)}
+  .wbnote{font-size:10.5px;letter-spacing:1.3px;text-transform:uppercase;opacity:.72;
+    white-space:nowrap;padding:0 8px}
+  .wb{height:11px;border-radius:7px;overflow:hidden;position:relative;
+      background:linear-gradient(180deg,rgba(108,182,255,.92),rgba(74,150,235,.92));
+      border:1px solid rgba(255,255,255,.16);
+      box-shadow:inset 0 1px 0 rgba(255,255,255,.3),0 3px 14px rgba(0,0,0,.38)}
+  #wbFill{height:100%;width:50%;border-radius:6px 0 0 6px;
+      background:linear-gradient(180deg,var(--acc),#ef8f36);
+      box-shadow:inset 0 1px 0 rgba(255,255,255,.35);
+      transition:width .55s cubic-bezier(.4,0,.2,1)}
+
+  /* ---------- 主区 ---------- */
+  .wrap{display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap;
+    justify-content:center;width:100%;max-width:1120px}
+  .boardcol{display:flex;flex-direction:column;gap:12px;flex:0 0 auto;max-width:100%}
+
+  /* 棋盘本身保持不透明——落子要看得清楚，这里不做玻璃，只给外框玻璃质感的边和光 */
+  .boardbox{
+    position:relative;border-radius:var(--r);overflow:hidden;flex:0 0 auto;max-width:100%;
+    background:linear-gradient(160deg,var(--wood),var(--wood2));
+    border:1px solid rgba(255,255,255,.2);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,.35),
+      0 18px 46px rgba(0,0,0,.5),
+      0 0 0 1px rgba(0,0,0,.3);
+  }
+  canvas{display:block;touch-action:manipulation;cursor:pointer;max-width:100%}
   .overlay{
     position:absolute;inset:0;display:none;place-items:center;
-    background:rgba(8,10,14,.72);backdrop-filter:blur(3px);
+    background:rgba(6,9,14,.42);
+    backdrop-filter:blur(14px) saturate(150%);-webkit-backdrop-filter:blur(14px) saturate(150%);
+    animation:fade .3s ease;
   }
+  @keyframes fade{from{opacity:0}to{opacity:1}}
   .overlay.on{display:grid}
-  .ocard{text-align:center;padding:22px 30px;border-radius:14px;background:var(--bg2);
-    box-shadow:0 0 0 1px rgba(255,255,255,.08);}
-  .ocard h2{font-size:22px;margin-bottom:6px}
-  .ocard p{color:var(--dim);font-size:13px;margin-bottom:14px}
+  .ocard{text-align:center;padding:26px 34px;border-radius:var(--r);
+    background:var(--glass-bg);
+    backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);
+    border:1px solid rgba(255,255,255,.2);
+    box-shadow:var(--glass-edge),0 16px 44px rgba(0,0,0,.5);
+    animation:pop .32s cubic-bezier(.2,.9,.3,1.3)}
+  @keyframes pop{from{transform:scale(.92);opacity:0}to{transform:scale(1);opacity:1}}
+  .ocard h2{font-size:24px;margin-bottom:6px;font-weight:680;text-shadow:0 2px 14px rgba(0,0,0,.5)}
+  .ocard p{color:var(--dim);font-size:13px;margin-bottom:16px}
 
-  .panel{flex:1 1 300px;min-width:290px;max-width:360px;display:flex;flex-direction:column;gap:12px}
-  .card{background:var(--bg2);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
-  .card h3{font-size:12px;color:var(--dim);font-weight:600;letter-spacing:1px;margin-bottom:10px;text-transform:uppercase}
+  /* ---------- 侧栏 ---------- */
+  .panel{flex:1 1 310px;min-width:290px;max-width:370px;display:flex;flex-direction:column;gap:12px}
+  .card{padding:14px 16px}
+  .card h3{font-size:11px;color:var(--dim);font-weight:650;letter-spacing:1.2px;
+    margin-bottom:11px;text-transform:uppercase}
 
-  .status{display:flex;align-items:center;gap:10px;font-size:15px;font-weight:600}
-  .dot{width:14px;height:14px;border-radius:50%;box-shadow:0 0 0 1px rgba(255,255,255,.25) inset}
-  .dot.b{background:linear-gradient(145deg,#4a4a4a,#000)}
-  .dot.w{background:linear-gradient(145deg,#fff,#c7c7c7)}
-  .thinking{color:var(--acc);font-size:12px;margin-top:6px;min-height:18px;font-variant-numeric:tabular-nums}
-
-  .row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:7px 0}
-  .row label{color:var(--dim);font-size:13px}
-  select,input[type=range]{background:#0f141b;color:var(--fg);border:1px solid var(--line);
-    border-radius:7px;padding:5px 8px;font-size:13px;outline:none}
-  select{cursor:pointer;min-width:120px}
-  input[type=range]{padding:0;width:130px;accent-color:var(--acc)}
-  .sw{position:relative;width:40px;height:22px;background:#0f141b;border:1px solid var(--line);
-    border-radius:11px;cursor:pointer;transition:.15s}
-  .sw::after{content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;
-    background:var(--dim);transition:.15s}
-  .sw.on{background:rgba(240,160,32,.25);border-color:var(--acc)}
-  .sw.on::after{left:20px;background:var(--acc)}
-
-  .btns{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
-  button{
-    background:#1b222c;color:var(--fg);border:1px solid var(--line);border-radius:8px;
-    padding:9px 10px;font-size:13px;cursor:pointer;transition:.13s;font-family:inherit;
+  details.card{padding:0}
+  details.card>summary{
+    list-style:none;cursor:pointer;padding:14px 16px;display:flex;
+    align-items:center;justify-content:space-between;gap:8px;
+    font-size:11px;color:var(--dim);font-weight:650;letter-spacing:1.2px;text-transform:uppercase;
+    user-select:none;-webkit-user-select:none;border-radius:var(--r);position:relative;z-index:1;
   }
-  button:hover:not(:disabled){background:#232c38;border-color:#3a4757}
-  button:active:not(:disabled){transform:translateY(1px)}
-  button:disabled{opacity:.4;cursor:not-allowed}
-  button.pri{background:linear-gradient(180deg,#f0a020,#d88a10);color:#1a1206;border-color:#c07c0c;font-weight:600}
-  button.pri:hover:not(:disabled){background:linear-gradient(180deg,#ffb236,#e59615)}
+  details.card>summary::-webkit-details-marker{display:none}
+  details.card>summary:hover{color:var(--fg)}
+  details.card>summary::after{content:'▸';font-size:12px;opacity:.8;
+    transition:transform .34s cubic-bezier(.34,1.4,.5,1)}
+  details.card[open]>summary::after{transform:rotate(90deg)}
+  details.card>.body{padding:0 16px 15px;position:relative;z-index:1}
 
-  .stats{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:12px;color:var(--dim);
+  .status{display:flex;align-items:center;gap:11px;font-size:15.5px;font-weight:650;
+    position:relative;z-index:1}
+  .dot{width:15px;height:15px;border-radius:50%;flex:0 0 auto;
+    box-shadow:0 0 0 1px rgba(255,255,255,.28) inset,0 2px 8px rgba(0,0,0,.4)}
+  .dot.b{background:linear-gradient(145deg,#5b5b63,#000)}
+  .dot.w{background:linear-gradient(145deg,#fff,#c4c4c0)}
+  .thinking{color:var(--acc);font-size:12px;margin-top:7px;min-height:18px;
+    font-variant-numeric:tabular-nums;position:relative;z-index:1}
+
+  .row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:10px 0}
+  .row:first-child{margin-top:0} .row:last-child{margin-bottom:0}
+  .row label{color:var(--dim);font-size:13px;min-width:0}
+  select,input[type=range]{
+    color:var(--fg);border:1px solid rgba(255,255,255,.14);
+    border-radius:var(--r-sm);padding:7px 10px;font-size:13px;outline:none;font-family:inherit;
+    background:rgba(255,255,255,.09);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.16);
+  }
+  select{cursor:pointer;min-width:126px}
+  select option{background:#141a24;color:var(--fg)}   /* 下拉展开项不继承半透明，否则不可读 */
+  select:focus-visible,button:focus-visible,.sw:focus-visible,summary:focus-visible{
+    outline:2px solid var(--acc2);outline-offset:2px}
+  input[type=range]{padding:0;width:128px;accent-color:var(--acc);cursor:pointer;box-shadow:none}
+  .sw{position:relative;width:44px;height:24px;border-radius:13px;cursor:pointer;flex:0 0 auto;
+    background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);
+    box-shadow:inset 0 1px 3px rgba(0,0,0,.35);
+    transition:background .28s ease,border-color .28s ease,box-shadow .28s ease}
+  /* 旋钮走 transform 而不是 left：这样「按下拉长」改宽度时不会把位移一起顶歪 */
+  .sw::after{content:'';position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;
+    background:linear-gradient(180deg,#fff,#c9d2de);box-shadow:0 2px 6px rgba(0,0,0,.45);
+    transition:transform .38s cubic-bezier(.34,1.42,.5,1),width .22s ease}
+  .sw.on{background:linear-gradient(180deg,rgba(255,179,64,.9),rgba(232,144,26,.9));
+    border-color:rgba(255,200,120,.5);box-shadow:inset 0 1px 0 rgba(255,255,255,.35),0 0 18px rgba(255,179,64,.4)}
+  .sw.on::after{transform:translateX(20px)}
+  .sw:active::after{width:23px}
+  .sw.on:active::after{transform:translateX(15px);width:23px}
+
+  .btns{display:grid;grid-template-columns:repeat(2,1fr);gap:9px;position:relative;z-index:1}
+  button{
+    color:var(--fg);border-radius:var(--r-sm);padding:11px 12px;font-size:13px;cursor:pointer;
+    transition:.16s;font-family:inherit;font-weight:550;position:relative;overflow:hidden;
+    background:linear-gradient(155deg,rgba(255,255,255,.19),rgba(255,255,255,.08)),
+               linear-gradient(0deg,rgba(7,11,19,.34),rgba(7,11,19,.34));
+    border:1px solid rgba(255,255,255,.18);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.3),0 4px 14px rgba(0,0,0,.28);
+  }
+  button:hover:not(:disabled){background:linear-gradient(155deg,rgba(255,255,255,.18),rgba(255,255,255,.08));
+    border-color:rgba(255,255,255,.26)}
+  button:active:not(:disabled){transform:translateY(1px) scale(.976)}
+  /* 点击涟漪：以按下点为圆心扩散。--rx/--ry 由 JS 在 pointerdown 时写入 */
+  button::after{
+    content:'';position:absolute;left:var(--rx,50%);top:var(--ry,50%);
+    width:0;height:0;border-radius:50%;transform:translate(-50%,-50%);
+    background:radial-gradient(circle,rgba(255,255,255,.5),rgba(255,255,255,0) 68%);
+    opacity:0;pointer-events:none;
+  }
+  button.rip::after{animation:ripple .58s cubic-bezier(.22,.7,.3,1)}
+  @keyframes ripple{
+    0%  {width:0;height:0;opacity:.75}
+    100%{width:300px;height:300px;opacity:0}
+  }
+  button.pri::after{background:radial-gradient(circle,rgba(255,255,255,.75),rgba(255,255,255,0) 68%)}
+  button:disabled{opacity:.32;cursor:not-allowed}
+  button.pri{
+    background:linear-gradient(180deg,rgba(255,190,80,.95),rgba(224,140,20,.95));
+    color:#241703;border-color:rgba(255,214,150,.55);font-weight:700;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.5),0 4px 18px rgba(255,160,40,.3);
+  }
+  button.pri:hover:not(:disabled){background:linear-gradient(180deg,#ffc65a,#f0a125)}
+
+  .stats{display:grid;grid-template-columns:auto 1fr;gap:7px 14px;font-size:12px;color:var(--dim);
     font-variant-numeric:tabular-nums}
-  .stats b{color:var(--fg);font-weight:600;text-align:right}
+  .stats b{color:var(--fg);font-weight:600;text-align:right;word-break:break-word}
 
-  .moves{max-height:130px;overflow:auto;font-size:11.5px;color:var(--dim);
-    font-family:ui-monospace,SFMono-Regular,Menlo,monospace;line-height:1.7;word-break:break-all}
+  .moves{max-height:132px;overflow:auto;font-size:11.5px;color:var(--dim);
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace;line-height:1.75;word-break:break-all;
+    overscroll-behavior:contain}
   .moves i{color:var(--fg);font-style:normal}
 
-  .tip{font-size:11.5px;color:var(--dim);line-height:1.7}
-  .tip code{background:#0f141b;padding:1px 5px;border-radius:4px;color:var(--acc)}
-  @media(max-width:760px){ .panel{max-width:none} }
+  .tip{font-size:11.5px;color:var(--dim);line-height:1.75;position:relative;z-index:1}
+  .tip code{background:rgba(255,255,255,.10);padding:1.5px 6px;border-radius:5px;color:var(--acc);
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;
+    border:1px solid rgba(255,255,255,.09)}
+  .tip b{color:var(--fg);font-weight:600}
+
+  /* ---------- 窄屏 ---------- */
+  @media(max-width:820px){
+    body{gap:13px}
+    .wrap{gap:13px}
+    .panel{max-width:none;flex-basis:100%;width:100%}
+    .wbnote{display:none}
+    header{flex-wrap:nowrap;align-items:flex-start}
+    .brand{flex-direction:column;align-items:flex-start;gap:2px;min-width:0}
+    .sub{font-size:11.5px}
+    #statusCard{order:1} #btnCard{order:2} #setCard{order:3}
+    #anaCard{order:4} #movesCard{order:5} #tipCard{order:6}
+    /* 手机 GPU 上多层 backdrop-filter 会掉帧，降模糊半径 */
+    :root{--glass-blur:blur(18px) saturate(165%)}
+  }
+  @media(prefers-reduced-motion:reduce){
+    *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;
+      transition-duration:.01ms!important}
+  }
 </style>
 </head>
 <body>
 
+<canvas id="bg" aria-hidden="true"></canvas>
+
+<noscript>
+  <div style="max-width:640px;margin:14px auto;padding:14px 16px;border-radius:12px;
+              background:#3a2408;border:1px solid #7a5210;color:#ffd79a;font-size:13px;line-height:1.7">
+    这个页面的棋盘与 AI 全部由 JavaScript 驱动，当前环境没有执行脚本，所以棋盘是空的。<br>
+    常见原因：用 iOS「文件」App 的预览打开——它只渲染 HTML/CSS，不跑脚本。
+    请改用浏览器打开（或把页面托管后访问其网址）。
+  </div>
+</noscript>
+
 <header>
-  <h1>五子棋</h1>
-  <div class="sub">威胁模式表 · PVS+置换表 · VCF/VCT 算杀</div>
+  <div class="brand">
+    <h1><span>●</span> <span data-i18n="title">五子棋</span></h1>
+    <div class="sub" data-i18n="subtitle">威胁模式表 · PVS+置换表 · VCF/VCT 算杀</div>
+  </div>
+  <button class="langbtn" id="langBtn" type="button">EN</button>
 </header>
 
 <div class="wbox" id="wbox">
@@ -122,85 +318,96 @@
 </div>
 
 <div class="wrap">
-  <div class="boardbox">
-    <canvas id="cv"></canvas>
-    <div class="overlay" id="ov">
-      <div class="ocard">
-        <h2 id="ovt">—</h2>
-        <p id="ovs">—</p>
-        <button class="pri" onclick="newGame()">再来一局</button>
+  <div class="boardcol">
+    <div class="boardbox">
+      <canvas id="cv" width="560" height="560"></canvas>
+      <div class="overlay" id="ov">
+        <div class="ocard">
+          <h2 id="ovt">—</h2>
+          <p id="ovs">—</p>
+          <button class="pri" onclick="newGame()" data-i18n="playAgain">再来一局</button>
+        </div>
       </div>
     </div>
   </div>
 
   <div class="panel">
-    <div class="card">
+    <div class="card glass" id="statusCard">
       <div class="status"><span class="dot b" id="turnDot"></span><span id="turnTxt">黑方落子</span></div>
       <div class="thinking" id="think">&nbsp;</div>
     </div>
 
-    <div class="card">
-      <h3>对局设置</h3>
-      <div class="row"><label>难度</label>
-        <select id="level">
-          <option value="1">入门</option>
-          <option value="2">普通</option>
-          <option value="3">困难</option>
-          <option value="4">大师</option>
-          <option value="5" selected>地狱（最强）</option>
-        </select>
+    <details class="card glass" id="setCard" open>
+      <summary data-i18n="settings">对局设置</summary>
+      <div class="body">
+        <div class="row"><label for="level" data-i18n="difficulty">难度</label>
+          <select id="level">
+            <option value="1" data-i18n="lv1">入门</option>
+            <option value="2" data-i18n="lv2">普通</option>
+            <option value="3" data-i18n="lv3">困难</option>
+            <option value="4" data-i18n="lv4">大师</option>
+            <option value="5" selected data-i18n="lv5">地狱（最强）</option>
+          </select>
+        </div>
+        <div class="row"><label for="side" data-i18n="mySide">我执</label>
+          <select id="side">
+            <option value="1" selected data-i18n="sideBlack">黑（先手）</option>
+            <option value="2" data-i18n="sideWhite">白（后手）</option>
+          </select>
+        </div>
+        <div class="row"><label for="time"><span data-i18n="thinkTime">思考时长</span>
+          <b id="tval" style="color:var(--fg)">9.0s</b></label>
+          <input type="range" id="time" min="1" max="20" step="1" value="9">
+        </div>
+        <div class="row"><label data-i18n="forbidRule">黑方禁手规则</label>
+          <div class="sw" id="forbid" role="switch" tabindex="0" aria-checked="false"></div></div>
+        <div class="row"><label data-i18n="showNums">显示手数</label>
+          <div class="sw on" id="nums" role="switch" tabindex="0" aria-checked="true"></div></div>
+        <div class="row"><label data-i18n="selfPlay">AI 自战</label>
+          <div class="sw" id="auto" role="switch" tabindex="0" aria-checked="false"></div></div>
+        <div class="row"><label><span data-i18n="takeOver">接管 AI</span>
+          <span class="tip" style="display:block" data-i18n="takeOverHint">开启后 AI 那一方由你落子</span></label>
+          <div class="sw" id="take" role="switch" tabindex="0" aria-checked="false"></div></div>
       </div>
-      <div class="row"><label>我执</label>
-        <select id="side">
-          <option value="1" selected>黑（先手）</option>
-          <option value="2">白（后手）</option>
-        </select>
-      </div>
-      <div class="row"><label>思考时长 <b id="tval" style="color:var(--fg)">9.0s</b></label>
-        <input type="range" id="time" min="1" max="20" step="1" value="9">
-      </div>
-      <div class="row"><label>黑方禁手规则</label><div class="sw" id="forbid"></div></div>
-      <div class="row"><label>显示手数</label><div class="sw on" id="nums"></div></div>
-      <div class="row"><label>AI 自战</label><div class="sw" id="auto"></div></div>
-      <div class="row"><label>接管 AI<span class="tip" style="display:block">开启后 AI 那一方由你落子</span></label><div class="sw" id="take"></div></div>
-    </div>
+    </details>
 
-    <div class="card">
+    <div class="card glass" id="btnCard">
       <div class="btns">
-        <button class="pri" onclick="newGame()">新对局</button>
-        <button id="btnUndo" onclick="undo()">悔棋</button>
-        <button id="btnHint" onclick="hint()">求助 AI</button>
-        <button id="btnStop" onclick="stopAuto()">停止自战</button>
+        <button class="pri" onclick="newGame()" data-i18n="newGame">新对局</button>
+        <button id="btnUndo" onclick="undo()" data-i18n="undo">悔棋</button>
+        <button id="btnHint" onclick="hint()" data-i18n="hint">求助 AI</button>
+        <button id="btnStop" onclick="stopAuto()" data-i18n="stopAuto">停止自战</button>
       </div>
     </div>
 
-    <div class="card">
-      <h3 id="anaHead" style="cursor:pointer;user-select:none">引擎分析 <span id="anaArrow" style="color:var(--dim);font-weight:400">▸ 点击展开</span></h3>
-      <div class="stats" id="anaBody" style="display:none">
-        <span>局面评分</span><b id="sScore">—</b>
-        <span>搜索深度</span><b id="sDepth">—</b>
-        <span>节点数</span><b id="sNodes">—</b>
-        <span>速度</span><b id="sNps">—</b>
-        <span>耗时</span><b id="sTime">—</b>
-        <span>主变化</span><b id="sPv" style="font-size:11px">—</b>
+    <details class="card glass" id="anaCard">
+      <summary data-i18n="analysis">引擎分析</summary>
+      <div class="body">
+        <div class="stats">
+          <span data-i18n="stScore">局面评分</span><b id="sScore">—</b>
+          <span data-i18n="stDepth">搜索深度</span><b id="sDepth">—</b>
+          <span data-i18n="stNodes">节点数</span><b id="sNodes">—</b>
+          <span data-i18n="stSpeed">速度</span><b id="sNps">—</b>
+          <span data-i18n="stTime">耗时</span><b id="sTime">—</b>
+          <span data-i18n="stPv">主变化</span><b id="sPv" style="font-size:11px">—</b>
+        </div>
       </div>
-    </div>
+    </details>
 
-    <div class="card">
-      <h3>着法记录</h3>
-      <div class="moves" id="mlist">—</div>
-    </div>
+    <details class="card glass" id="movesCard">
+      <summary data-i18n="moveList">着法记录</summary>
+      <div class="body"><div class="moves" id="mlist">—</div></div>
+    </details>
 
-    <div class="card">
-      <div class="tip">
-        快捷键 <code>U</code> 悔棋 · <code>N</code> 新局 · <code>H</code> 求助<br>
-        地狱难度下 AI 会做完整的<b>连四杀（VCF）</b>、<b>连续威胁杀（VCT，含四三/双三）</b>与<b>杀棋规避</b>校验；
-        若想体验绝望模式，把「我执」设为白（AI 先手）。
+    <div class="card glass" id="tipCard">
+      <div class="tip" id="tipBox">
+        <span data-i18n="keys">快捷键 <code>U</code> 悔棋 · <code>N</code> 新局 · <code>H</code> 求助</span><br>
+        <span data-i18n="tipBody">地狱难度下 AI 会做完整的<b>连四杀（VCF）</b>、<b>连续威胁杀（VCT，含四三/双三）</b>与<b>杀棋规避</b>校验；
+        若想体验绝望模式，把「我执」设为白（AI 先手）。</span>
       </div>
     </div>
   </div>
 </div>
-
 <!-- ==================== 引擎源码（Worker / 主线程共用） ==================== -->
 <script id="engineSrc" type="text/plain">
 'use strict';
@@ -497,7 +704,7 @@ var TT_BITS=20, TT_SIZE=1<<TT_BITS, TT_MASK=TT_SIZE-1;
 var ttKey=new Int32Array(TT_SIZE), ttVal=new Int32Array(TT_SIZE);
 var ttDepth=new Int8Array(TT_SIZE), ttFlag=new Int8Array(TT_SIZE);
 var ttSide=new Int8Array(TT_SIZE), ttMove=new Int32Array(TT_SIZE);
-function ttClear(){ ttSide.fill(0); }
+function ttClear(){ ttSide.fill(0); vctTtClear(); }
 function ttIndex(side){ return (hash1^(side===BLACK?0:0x5bf03635))&TT_MASK; }
 
 /* ---------- 主搜索 ---------- */
@@ -636,6 +843,27 @@ var atkBuf=new Int32Array(32*64), atkSc=new Int32Array(32*64);
 var defBuf=new Int32Array(32*32);
 var patSave=new Int8Array(32*4);   // 落子前的棋型快照：落子后该点棋型会被清零，必须先存
 
+/* ---------- VCT 置换表（只加在 vct() 上；VCF 占算杀节点仅 0.3%，加了白写，见 PROGRESS） ----------
+   置换率实测 86%（scratchpad/probe_tt.js），LV4 出厂配置 A/B 24 局 9:15 净胜（scratchpad/ab_vcttt.js）。
+   深度字段照旧存入表项用于比对——剩余深度是局面的函数，比对它不会丢命中，但能防止
+   「进攻搜索」（cfg.vctDepth 起步）与「rootFilter 防守搜索」（cfg.vctDefDepth 起步）
+   两条起始预算不同的搜索线在同一局面上互相污染（它们共享同一张表，同一手 think() 内都跑）。
+   中止污染：vctLimit/vctDeadline/lvl 上限撞到时返回的 0 不是证伪，绝不能存证伪条目，
+   否则会把没搜完的局面永久标记成「安全」，产生假防守。用全局计数器 vctAbortMark 标记——
+   进节点前记 mark，子树搜完后计数器没变才允许写证伪条目；证明（找到杀点）不受影响，
+   随时可写，因为中止的子节点只会被当成「防住了」处理，不会让本节点错误地宣称找到杀点。
+   证明条目命中后用前必须校验 board[m]===EMPTY 且确实是威胁点，防 20 位索引+32 位校验和
+   仍会有的哈希碰撞把引擎带偏成一步垃圾「必胜」棋。
+   生命周期：随 ttClear() 每步清空——跟置换率的测量口径一致（单步内 86%），
+   ENG.clearHistory() 也走 ttClear()，跨局不会残留（det.js 的确定性台子依赖这一点）。 */
+var VCT_TT_BITS=21, VCT_TT_SIZE=1<<VCT_TT_BITS, VCT_TT_MASK=VCT_TT_SIZE-1;
+var vctTtKey=new Int32Array(VCT_TT_SIZE), vctTtSide=new Int8Array(VCT_TT_SIZE);
+var vctTtDepth=new Int8Array(VCT_TT_SIZE), vctTtFlag=new Int8Array(VCT_TT_SIZE);
+var vctTtMove=new Int32Array(VCT_TT_SIZE);
+var vctAbortMark=0;
+function vctTtClear(){ vctTtSide.fill(0); }
+function vctTtIndex(side){ return (hash1^(side===BLACK?0x2f6e2b1d:0x7c9e6a3f))&VCT_TT_MASK; }
+
 function forcingKind(side,q){        // 0=非强制 1=活三 2=冲四/活四 3=成五
   var P=side===BLACK?PB:PW, b=q*4, k, t, r=0;
   for(k=0;k<4;k++){
@@ -681,14 +909,25 @@ function genDefense(side, m, w, lvl){
   return n;
 }
 function vct(side, depth, lvl){
-  if(++vctNodes>vctLimit) return 0;
-  if((vctNodes&255)===0 && nowMs()>vctDeadline) return 0;
-  if(lvl>=30) return 0;
+  if(++vctNodes>vctLimit){ vctAbortMark++; return 0; }
+  if((vctNodes&255)===0 && nowMs()>vctDeadline){ vctAbortMark++; return 0; }
+  if(lvl>=30){ vctAbortMark++; return 0; }
   var opp=3-side, i, k, q;
   if(fivePoints(side,1)>0) return fpBuf[0];
   if(depth<=0) return 0;
   var on=fivePoints(opp,2);
   if(on>=2) return 0;
+
+  var d2=depth>127?127:depth, ti=vctTtIndex(side);
+  if(vctTtSide[ti]===side && vctTtKey[ti]===hash2 && vctTtDepth[ti]===d2){
+    var tf=vctTtFlag[ti];
+    if(tf===1) return 0;
+    if(tf===2){
+      var hm=vctTtMove[ti];
+      if(board[hm]===EMPTY && forcingKind(side,hm)!==0) return hm;
+    }
+  }
+  var mark=vctAbortMark;
   var forced = on===1 ? fpBuf[0] : 0;         // 对方有冲四：我只能走那一点
 
   var S=side===BLACK?SB:SW, base=lvl*64, n=0, kind;
@@ -729,8 +968,16 @@ function vct(side, depth, lvl){
       }
     }
     unmake(q,side);
-    if(res) return res;
-    if(vctNodes>vctLimit||nowMs()>vctDeadline) return 0;
+    if(res){
+      vctTtKey[ti]=hash2; vctTtSide[ti]=side; vctTtDepth[ti]=d2;
+      vctTtFlag[ti]=2; vctTtMove[ti]=res;
+      return res;
+    }
+    if(vctNodes>vctLimit||nowMs()>vctDeadline){ vctAbortMark++; return 0; }
+  }
+  if(vctAbortMark===mark){
+    vctTtKey[ti]=hash2; vctTtSide[ti]=side; vctTtDepth[ti]=d2;
+    vctTtFlag[ti]=1; vctTtMove[ti]=0;
   }
   return 0;
 }
@@ -892,6 +1139,99 @@ self.postMessage({t:'ready'});
 
 <!-- ==================== 界面 ==================== -->
 <script>
+/* ---------- 中英文案 ----------
+   静态节点用 data-i18n 标记，切换时整页重刷；动态字符串走 t(key) / t(key)(参数)。
+   语言存 localStorage，刷新后保持。 */
+const I18N={
+  zh:{
+    title:'五子棋', subtitle:'威胁模式表 · PVS+置换表 · VCF/VCT 算杀',
+    settings:'对局设置', difficulty:'难度', mySide:'我执', thinkTime:'思考时长',
+    lv1:'入门', lv2:'普通', lv3:'困难', lv4:'大师', lv5:'地狱（最强）',
+    sideBlack:'黑（先手）', sideWhite:'白（后手）',
+    forbidRule:'黑方禁手规则', showNums:'显示手数', selfPlay:'AI 自战',
+    takeOver:'接管 AI', takeOverHint:'开启后 AI 那一方由你落子',
+    newGame:'新对局', undo:'悔棋', hint:'求助 AI', stopAuto:'停止自战', playAgain:'再来一局',
+    analysis:'引擎分析', moveList:'着法记录',
+    stScore:'局面评分', stDepth:'搜索深度', stNodes:'节点数', stSpeed:'速度',
+    stTime:'耗时', stPv:'主变化',
+    keys:'快捷键 <code>U</code> 悔棋 · <code>N</code> 新局 · <code>H</code> 求助',
+    tipBody:'地狱难度下 AI 会做完整的<b>连四杀（VCF）</b>、<b>连续威胁杀（VCT，含四三/双三）</b>与<b>杀棋规避</b>校验；'+
+            '若想体验绝望模式，把「我执」设为白（AI 先手）。',
+    black:'黑', white:'白',
+    aiThinking:'AI 思考中', aiThinkingDots:'AI 思考中…', strategy:'策略：',
+    turnYou:c=>'轮到你：'+c+'方', turnAI:c=>'AI：'+c+'方',
+    turnAuto:c=>c+'方（AI）', turnTake:c=>'你接管 AI：'+c+'方',
+    draw:'和棋', youWin:'你赢了！', blackWins:'黑方胜', whiteWins:'白方胜',
+    fiveBy:c=>c+'方连成五子', forbidLoss:'黑方禁手判负',
+    wbAI:'AI', wbYou:'你', wbAiBlack:'AI 黑', wbAiWhite:'AI 白',
+    winrate:'胜率', calculating:'计算中…', endgame:'终局',
+    aiSureWin:'AI 必胜', aiSureLose:'AI 必败', plies:d=>d+' 层',
+    workerWarn:'当前浏览器禁止在 <code>file://</code> 下创建 Worker，引擎已回退到主线程：'+
+      '思考期间页面会短暂无响应，单步已限制在 3 秒内。想要完整算力，'+
+      '在本目录执行 <code>python3 -m http.server 8000</code> 后访问 <code>localhost:8000</code>。',
+  },
+  en:{
+    title:'Gomoku', subtitle:'Threat pattern tables · PVS + TT · VCF/VCT solver',
+    settings:'Game settings', difficulty:'Difficulty', mySide:'I play', thinkTime:'Think time',
+    lv1:'Beginner', lv2:'Casual', lv3:'Hard', lv4:'Master', lv5:'Nightmare (max)',
+    sideBlack:'Black (first)', sideWhite:'White (second)',
+    forbidRule:'Renju forbidden moves', showNums:'Move numbers', selfPlay:'AI self-play',
+    takeOver:'Control the AI', takeOverHint:"You play the AI's side too",
+    newGame:'New game', undo:'Undo', hint:'Ask AI', stopAuto:'Stop self-play', playAgain:'Play again',
+    analysis:'Engine analysis', moveList:'Move list',
+    stScore:'Evaluation', stDepth:'Depth', stNodes:'Nodes', stSpeed:'Speed',
+    stTime:'Time', stPv:'Principal variation',
+    keys:'Shortcuts <code>U</code> undo · <code>N</code> new · <code>H</code> hint',
+    tipBody:'On Nightmare the AI runs full <b>VCF</b> (forced-four wins), <b>VCT</b> '+
+            '(threat sequences incl. four-three / double-three) and <b>loss avoidance</b> checks. '+
+            'For the bleak version, set "I play" to White so the AI moves first.',
+    black:'Black', white:'White',
+    aiThinking:'AI thinking', aiThinkingDots:'AI thinking…', strategy:'Line: ',
+    turnYou:c=>'Your turn · '+c, turnAI:c=>'AI · '+c,
+    turnAuto:c=>c+' (AI)', turnTake:c=>'You control AI · '+c,
+    draw:'Draw', youWin:'You win!', blackWins:'Black wins', whiteWins:'White wins',
+    fiveBy:c=>c+' connects five', forbidLoss:'Black loses (forbidden move)',
+    wbAI:'AI', wbYou:'You', wbAiBlack:'AI Black', wbAiWhite:'AI White',
+    winrate:'win rate', calculating:'thinking…', endgame:'final',
+    aiSureWin:'AI wins by force', aiSureLose:'AI is lost', plies:d=>d+' ply',
+    workerWarn:'This browser blocks Workers on <code>file://</code>, so the engine fell back to the '+
+      'main thread: the page freezes briefly while thinking and each move is capped at 3s. '+
+      'For full strength run <code>python3 -m http.server 8000</code> here and open <code>localhost:8000</code>.',
+  },
+};
+/* 引擎返回的 note 是写死的中文，而引擎源码要与实验台逐字节一致、不能改动，
+   所以在显示层做映射。key 必须与 index.html 引擎段里的字面量完全一致。 */
+const NOTE_EN={
+  '开局':'Opening', '成五':'Five in a row', '挡五':'Blocking five',
+  'VCF 连四杀':'VCF — forced-four win', 'VCT 连续威胁杀':'VCT — threat-sequence win',
+  '无路可走':'No legal move',
+};
+function noteText(n){ return (LANG==='en' && NOTE_EN[n]) ? NOTE_EN[n] : n; }
+
+let LANG = (function(){
+  try{ const s=localStorage.getItem('gomoku.lang'); if(s==='zh'||s==='en') return s; }catch(e){}
+  return (navigator.language||'').toLowerCase().startsWith('zh') ? 'zh' : 'en';
+})();
+function t(k){ return I18N[LANG][k]; }
+function applyLang(){
+  document.documentElement.lang = LANG==='zh' ? 'zh-CN' : 'en';
+  document.title = LANG==='zh' ? '五子棋 Gomoku · AI' : 'Gomoku · AI';
+  document.querySelectorAll('[data-i18n]').forEach(el=>{
+    const v=I18N[LANG][el.dataset.i18n];
+    if(v==null) return;
+    // 文案里带 <code>/<b> 标记，只有这几处需要 innerHTML；其余走 textContent 更安全
+    if(/[<]/.test(v)) el.innerHTML=v; else el.textContent=v;
+  });
+  document.getElementById('langBtn').textContent = LANG==='zh' ? 'EN' : '中文';
+  if(typeof workerWarnEl!=='undefined' && workerWarnEl) workerWarnEl.innerHTML=t('workerWarn');
+  if(typeof updateUI==='function'){
+    updateUI(); refreshOverlayText();
+    // 已经显示出来的「策略：…」也要跟着换语言，否则会留在旧语言
+    if(!aiThinking) document.getElementById('think').textContent=
+      (showAnalysis&&lastNote)?(t('strategy')+noteText(lastNote)):' ';
+  }
+}
+
 const SZ=15;
 let moves=[];            // [x,y] 按顺序，偶数下标为黑
 let over=false, winLine=null, winner=0;
@@ -928,12 +1268,135 @@ if(!usingWorker){
   engine=shim;
 }
 
+/* ---------- 水粉背景 ----------
+   地盘按胜率划分：AI 占优 -> 暖色（琥珀/橘）铺得多，你占优 -> 冷色（蓝/青/紫）铺得多。
+
+   怎么做到「交界像混色」：每个色团都同时持有一个暖色和一个冷色，实际颜色由它在
+   x 轴上相对分界线的位置插值而来，过渡带很宽（SOFT）。所以靠近分界的色团本身就是
+   两色调和出来的中间色，而不是两块颜色硬拼在一起——这正是水粉湿画法的样子。
+
+   性能：画布只有 ~1/5 分辨率，放大时的双线性插值顺带把色团揉软（省掉昂贵的全屏
+   CSS blur）。重绘按需限速——静止时约 8fps、胜率变化时约 24fps，因为每次重绘都会
+   让上面每块玻璃重算一次 backdrop（上一轮实测：不限速会把 60fps 打到 12fps）。 */
+const BG=(function(){
+  const el=document.getElementById('bg'), c=el.getContext('2d');
+  const WARM=[[255,138,20],[255,72,36],[255,186,54],[255,102,48]];    // AI（高饱和）
+  const COOL=[[28,120,255],[0,214,204],[142,64,255],[36,158,255]];    // 你（高饱和）
+  // 底层横向渐变用的深色版本——负责把整幅背景铺满，色团只在它上面叠浓淡
+  const WARM_BASE=[132,44,4], COOL_BASE=[12,44,128];
+  const N=18, SOFT=0.34;                 // SOFT 越大，交界的调和带越宽
+  const blobs=[];
+  let seed=20260808;
+  const rnd=()=>((seed=(seed*1103515245+12345)&0x7fffffff)/0x7fffffff);
+  for(let i=0;i<N;i++) blobs.push({
+    bx:-0.15+rnd()*1.30, by:-0.1+rnd()*1.2, r:0.34+rnd()*0.34,
+    fx:0.13+rnd()*0.30, fy:0.11+rnd()*0.28,   // 各自不同的漂移频率 -> 不会整体同步晃
+    ph:rnd()*6.283, ax:0.09+rnd()*0.11, ay:0.07+rnd()*0.10,
+    a:0.16+rnd()*0.14, pal:i%4,
+  });
+
+  let target=0.5, cur=0.5, t=0, W=0, H=0, last=0, raf=0, img=null;
+  const reduce=window.matchMedia&&window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+
+  function resize(){
+    // 1/5 分辨率就够——反正整幅图都是柔和过渡，放大后看不出来。
+    // 上限 300x200：底层是逐像素画的，4K 屏下不封顶会白白多花好几倍。
+    W=Math.min(300,Math.max(72,Math.round(window.innerWidth/5)));
+    H=Math.min(200,Math.max(48,Math.round(window.innerHeight/5)));
+    el.width=W; el.height=H;
+    img=c.createImageData(W,H);      // 复用，避免每帧重新分配
+    paint();
+  }
+  const smooth=x=>{ x=x<0?0:(x>1?1:x); return x*x*(3-2*x); };
+
+  /* 分界线不是一条竖直线，而是随高度起伏、并随时间流动的曲线 x = edgeAt(y)。
+     两个不同频率的正弦叠加，所以左右宽窄一路变化（这里多一点、那里少一点），像流体。
+     关键：它对每个 y 只有一个取值，于是「曲线左边全是暖、右边全是冷」恒成立——
+     两种颜色各自始终是连通的一整片，绝不会裂成互相分开的色块。 */
+  function edgeAt(ny){
+    return (-0.28+cur*1.66)
+         + 0.105*Math.sin(ny*3.0 + t*0.62)
+         + 0.062*Math.sin(ny*6.9 - t*0.41 + 1.9);
+  }
+
+  function paint(){
+    // 底层逐像素画：分界既然是曲线，就没法用一条 createLinearGradient 表达了。
+    // 画布很小（<=300x200），这点循环开销可以忽略。
+    const d=img.data, dr=COOL_BASE[0]-WARM_BASE[0], dg=COOL_BASE[1]-WARM_BASE[1], db=COOL_BASE[2]-WARM_BASE[2];
+    for(let yy=0;yy<H;yy++){
+      const ny=yy/H, ey=edgeAt(ny);
+      const vT=Math.max(0,(0.30-ny)/0.30), vB=Math.max(0,(ny-0.68)/0.32);
+      const dark=1-0.34*vT*vT-0.42*vB*vB;      // 上下压暗，避免整幅平得像色卡
+      let i=(yy*W)<<2;
+      for(let xx=0;xx<W;xx++,i+=4){
+        const m=smooth((xx/W-ey)/SOFT+0.5);
+        d[i]  =(WARM_BASE[0]+dr*m)*dark;
+        d[i+1]=(WARM_BASE[1]+dg*m)*dark;
+        d[i+2]=(WARM_BASE[2]+db*m)*dark;
+        d[i+3]=255;
+      }
+    }
+    c.putImageData(img,0,0);
+    c.globalCompositeOperation='screen';       // 深底上叠色，像层层罩染
+    const R=Math.max(W,H);
+    for(const b of blobs){
+      const x=(b.bx+Math.sin(t*b.fx+b.ph)*b.ax);
+      const y=(b.by+Math.cos(t*b.fy+b.ph*1.7)*b.ay);
+      // 取自己所在高度上的分界值，才能和底层的波形对齐（行程超出画面两侧，
+      // 否则一方 95% 时另一端仍会残留对方色团，「地盘被吃掉」的感觉出不来）
+      const m=smooth((x-edgeAt(y))/SOFT+0.5);
+      const wa=WARM[b.pal], co=COOL[b.pal];
+      const r=Math.round(wa[0]+(co[0]-wa[0])*m),
+            g=Math.round(wa[1]+(co[1]-wa[1])*m),
+            bl=Math.round(wa[2]+(co[2]-wa[2])*m);
+      const px=x*W, py=y*H, pr=b.r*R;
+      const grd=c.createRadialGradient(px,py,0,px,py,pr);
+      grd.addColorStop(0,   'rgba('+r+','+g+','+bl+','+b.a+')');
+      grd.addColorStop(0.55,'rgba('+r+','+g+','+bl+','+(b.a*0.42).toFixed(3)+')');
+      grd.addColorStop(1,   'rgba('+r+','+g+','+bl+',0)');
+      c.fillStyle=grd;
+      c.beginPath(); c.arc(px,py,pr,0,6.2832); c.fill();
+    }
+    c.globalCompositeOperation='source-over';
+  }
+
+  function frame(ts){
+    raf=0;
+    const moving=Math.abs(cur-target)>0.0015;
+    // 限速：胜率变化时画顺一点，静止时慢慢飘就行
+    const gap=moving?42:70;
+    if(ts-last>=gap){
+      const dt=(ts-last)/1000; last=ts;
+      if(moving) cur+=(target-cur)*Math.min(1,dt*1.25);  // 指数趋近，起步快收尾缓（约 1.5s 洇满）
+      else cur=target;
+      if(!reduce) t+=dt*1.15;
+      paint();
+    }
+    if(moving||!reduce) raf=requestAnimationFrame(frame);
+  }
+  function kick(){ if(!raf){ last=performance.now()-200; raf=requestAnimationFrame(frame); } }
+
+  window.addEventListener('resize',resize);
+  resize();
+  if(!reduce) kick();
+  return {
+    /* p = AI 的胜率（0~1）。updateWinBar 每次算完都会喂进来。 */
+    set(p){ if(Math.abs(p-target)<0.002) return; target=p; if(reduce){ cur=p; paint(); } else kick(); }
+  };
+})();
+
 /* ---- 画布 ---- */
 const cv=document.getElementById('cv'), ctx=cv.getContext('2d');
 let CELL=36, MARGIN=26, DPR=Math.min(window.devicePixelRatio||1,2);
 function layout(){
-  const avail=Math.min(window.innerWidth-40, 560);
-  CELL=Math.max(20, Math.floor((avail-2*22)/(SZ-1)));
+  DPR=Math.min(window.devicePixelRatio||1,2);   // 拖到不同 DPI 的显示器上也要跟着变
+  const wide=window.innerWidth>=821;
+  const byW=Math.min(window.innerWidth-28, wide?620:560);
+  // 只按宽度算会让棋盘在横屏手机/矮窗口下顶出屏幕外，必须同时受高度约束。
+  // 预留：宽屏是头部+胜率条；窄屏还要再留快捷操作条。
+  const byH=window.innerHeight-(wide?150:250);
+  const avail=Math.max(258, Math.min(byW, byH));
+  CELL=Math.max(16, Math.floor((avail-2*22)/(SZ-1)));
   MARGIN=Math.round(CELL*0.78);
   const px=CELL*(SZ-1)+MARGIN*2;
   cv.style.width=px+'px'; cv.style.height=px+'px';
@@ -1156,22 +1619,30 @@ function place(x,y){
   hintCell=null;
   if(forbidOn && c===1 && uiForbidden(x,y)){
     moves.push([x,y]); rebuild();
-    endGame(2,'黑方禁手判负',null); draw(); return;
+    endGame(2,'forbidLoss',null); draw(); return;
   }
   moves.push([x,y]); rebuild();
   const line=checkWin(x,y,c);
   if(line){ endGame(c,null,line); }
-  else if(moves.length>=SZ*SZ) endGame(0,'和棋',null);
+  else if(moves.length>=SZ*SZ) endGame(0,'draw',null);
   updateUI(); draw();
 }
 
-function endGame(w,msg,line){
-  over=true; winner=w; winLine=line; autoPlay=false; setSw('auto',false);
-  const ov=document.getElementById('ov');
+/* 结束语存的是文案 key 而不是成品字符串——否则切换语言时终局弹窗会留在旧语言 */
+let overMsgKey=null;
+function refreshOverlayText(){
+  if(!over) return;
+  const w=winner;
   document.getElementById('ovt').textContent =
-    w===0?'和棋':(w===mySide&&!autoPlay?'你赢了！':(w===1?'黑方胜':'白方胜'));
-  document.getElementById('ovs').textContent = msg || (w===1?'黑方连成五子':'白方连成五子');
-  ov.classList.add('on');
+    w===0?t('draw'):(w===mySide&&!autoPlay?t('youWin'):(w===1?t('blackWins'):t('whiteWins')));
+  document.getElementById('ovs').textContent =
+    overMsgKey ? t(overMsgKey) : t('fiveBy')(w===1?t('black'):t('white'));
+}
+function endGame(w,msgKey,line){
+  over=true; winner=w; winLine=line; autoPlay=false; setSw('auto',false);
+  overMsgKey=msgKey;
+  refreshOverlayText();
+  document.getElementById('ov').classList.add('on');
   updateUI(); updateWinBar(); draw();
 }
 
@@ -1201,14 +1672,14 @@ let lastThinkSide=0;
 function aiMove(forHint){
   if(over||aiThinking) return;
   aiThinking=true; lastThinkSide=turn(); updateUI();
-  document.getElementById('think').textContent='AI 思考中…';
+  document.getElementById('think').textContent=t('aiThinkingDots');
   postToEngine({t:'think', moves:moves, side:lastThinkSide, cfg:cfg(), forHint:!!forHint});
 }
 function onBest(m){
   aiThinking=false;
   showInfo(m);
   lastNote=m.note||'';
-  document.getElementById('think').textContent = (showAnalysis&&m.note)?('策略：'+m.note):' ';
+  document.getElementById('think').textContent = (showAnalysis&&m.note)?(t('strategy')+noteText(m.note)):' ';
   if(m.forHint){ hintCell=[m.x,m.y]; updateUI(); draw(); return; }
   if(over) { updateUI(); return; }
   place(m.x,m.y);
@@ -1232,8 +1703,8 @@ function winProb(s){
 function updateWinBar(){
   const leftSide  = autoPlay ? 1 : 3-mySide;   // 左端：AI（自战时为黑方）
   const rightSide = 3-leftSide;
-  document.getElementById('wbAiName').textContent = autoPlay?'AI 黑':'AI';
-  document.getElementById('wbMeName').textContent = autoPlay?'AI 白':'你';
+  document.getElementById('wbAiName').textContent = autoPlay?t('wbAiBlack'):t('wbAI');
+  document.getElementById('wbMeName').textContent = autoPlay?t('wbAiWhite'):t('wbYou');
   let p;
   if(over){
     p = winner===0?0.5:(winner===leftSide?1:0);
@@ -1243,23 +1714,24 @@ function updateWinBar(){
     p = winProb(lastScore);
     if(lastScoreSide!==leftSide) p = 1-p;      // 换算到左端视角
   }
+  BG.set(p);                    // 背景地盘跟着胜率走（左端=AI=暖色）
   const l=Math.round(p*100);
   document.getElementById('wbFill').style.width = l+'%';
   document.getElementById('wbAi').textContent = l+'%';
   document.getElementById('wbMe').textContent = (100-l)+'%';
   document.getElementById('wbNote').textContent =
-    over ? (winner===0?'和棋':'终局') : (aiThinking?'计算中…':'胜率');
+    over ? (winner===0?t('draw'):t('endgame')) : (aiThinking?t('calculating'):t('winrate'));
   document.getElementById('wbox').classList.toggle('busy', aiThinking&&!over);
 }
 
 function showInfo(m){
   const s=m.score;
   let txt;
-  if(s>=9000000-300) txt='AI 必胜';
-  else if(s<=-(9000000-300)) txt='AI 必败';
+  if(s>=9000000-300) txt=t('aiSureWin');
+  else if(s<=-(9000000-300)) txt=t('aiSureLose');
   else txt=(s>0?'+':'')+s;
   document.getElementById('sScore').textContent=txt;
-  document.getElementById('sDepth').textContent=m.depth+' 层';
+  document.getElementById('sDepth').textContent=t('plies')(m.depth);
   document.getElementById('sNodes').textContent=(m.nodes||0).toLocaleString();
   document.getElementById('sTime').textContent=((m.ms||0)/1000).toFixed(2)+' s';
   document.getElementById('sNps').textContent=
@@ -1272,15 +1744,67 @@ function showInfo(m){
 
 /* ---- 控件 ---- */
 let numsOn=true, forbidOn=false;
-function setSw(id,v){ document.getElementById(id).classList.toggle('on',v); }
+function setSw(id,v){
+  const el=document.getElementById(id);
+  el.classList.toggle('on',v);
+  el.setAttribute('aria-checked', v?'true':'false');
+}
+// 开关是 div，键盘用户要靠这个才能操作（HTML 里已给 role=switch + tabindex）
+document.querySelectorAll('.sw').forEach(sw=>{
+  sw.addEventListener('keydown',e=>{
+    if(e.key===' '||e.key==='Enter'){ e.preventDefault(); sw.click(); }
+  });
+});
+
+/* ---- 交互动效 ---- */
+const REDUCE=window.matchMedia&&window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+
+// 按钮涟漪：把按下点写进 CSS 变量，重启动画（先摘 class 再强制回流，否则连点第二下不触发）
+document.addEventListener('pointerdown',e=>{
+  const btn=e.target.closest('button');
+  if(!btn||btn.disabled||REDUCE) return;
+  const r=btn.getBoundingClientRect();
+  btn.style.setProperty('--rx',(e.clientX-r.left)+'px');
+  btn.style.setProperty('--ry',(e.clientY-r.top)+'px');
+  btn.classList.remove('rip'); void btn.offsetWidth; btn.classList.add('rip');
+},{passive:true});
+
+/* 原生 details 不能给高度做过渡，接管点击用 WAAPI 自己动。
+   仍然通过设置 .open 来切换，所以 toggle 事件、键盘操作、语义都保持不变。 */
+document.querySelectorAll('details.card').forEach(d=>{
+  const sum=d.querySelector('summary'), body=d.querySelector('.body');
+  if(!sum||!body) return;
+  let anim=null;
+  sum.addEventListener('click',e=>{
+    e.preventDefault();
+    if(REDUCE){ d.open=!d.open; return; }
+    if(anim) anim.cancel();
+    const opening=!d.open;
+    if(opening) d.open=true;                    // 先展开才量得到自然高度
+    const h=body.scrollHeight;
+    body.style.overflow='hidden';
+    anim=body.animate(
+      opening ? [{height:0,opacity:0},{height:h+'px',opacity:1}]
+              : [{height:h+'px',opacity:1},{height:0,opacity:0}],
+      {duration:opening?300:240, easing:opening?'cubic-bezier(.25,.9,.3,1)':'cubic-bezier(.4,0,.65,1)'}
+    );
+    anim.onfinish=()=>{
+      anim=null; body.style.overflow='';
+      if(!opening) d.open=false;                // 收起动画放完再真正关闭
+    };
+  });
+});
 document.getElementById('nums').onclick=function(){ numsOn=!numsOn; setSw('nums',numsOn); draw(); };
 document.getElementById('forbid').onclick=function(){ forbidOn=!forbidOn; setSw('forbid',forbidOn); };
-document.getElementById('anaHead').onclick=function(){
-  showAnalysis=!showAnalysis;
-  document.getElementById('anaBody').style.display=showAnalysis?'':'none';
-  document.getElementById('anaArrow').textContent=showAnalysis?'▾ 点击收起':'▸ 点击展开';
-  // 策略提示跟着一起显示/隐藏；收起时不留残留
-  if(!aiThinking) document.getElementById('think').textContent=(showAnalysis&&lastNote)?('策略：'+lastNote):' ';
+// 分析卡改成原生 details，展开状态由浏览器管，这里只同步「策略提示」的显隐
+document.getElementById('anaCard').addEventListener('toggle',function(){
+  showAnalysis=this.open;
+  if(!aiThinking) document.getElementById('think').textContent=(showAnalysis&&lastNote)?(t('strategy')+noteText(lastNote)):' ';
+});
+document.getElementById('langBtn').onclick=function(){
+  LANG = LANG==='zh' ? 'en' : 'zh';
+  try{ localStorage.setItem('gomoku.lang',LANG); }catch(e){}
+  applyLang();
 };
 document.getElementById('take').onclick=function(){
   takeOver=!takeOver; setSw('take',takeOver);
@@ -1330,17 +1854,19 @@ function newGame(){
   if(mySide===2 && !takeOver) setTimeout(aiMove,300);
 }
 function updateUI(){
-  const t=turn();
-  document.getElementById('turnDot').className='dot '+(t===1?'b':'w');
+  const cur=turn();                     // 注意：别叫 t，会遮蔽 i18n 的 t()
+  const col=cur===1?t('black'):t('white');
+  document.getElementById('turnDot').className='dot '+(cur===1?'b':'w');
   let txt;
-  if(over) txt = winner===0?'和棋':(winner===1?'黑方胜':'白方胜');
-  else if(aiThinking) txt='AI 思考中';
-  else if(autoPlay) txt=(t===1?'黑':'白')+'方（AI）';
-  else if(takeOver&&t!==mySide) txt='你接管 AI：'+(t===1?'黑':'白')+'方';
-  else txt=(t===mySide?'轮到你':'AI')+'：'+(t===1?'黑':'白')+'方';
+  if(over) txt = winner===0?t('draw'):(winner===1?t('blackWins'):t('whiteWins'));
+  else if(aiThinking) txt=t('aiThinking');
+  else if(autoPlay) txt=t('turnAuto')(col);
+  else if(takeOver&&cur!==mySide) txt=t('turnTake')(col);
+  else txt=(cur===mySide?t('turnYou'):t('turnAI'))(col);
   document.getElementById('turnTxt').textContent=txt;
-  document.getElementById('btnUndo').disabled=aiThinking||autoPlay||!moves.length;
-  document.getElementById('btnHint').disabled=aiThinking||autoPlay||over;
+  const noUndo=aiThinking||autoPlay||!moves.length, noHint=aiThinking||autoPlay||over;
+  document.getElementById('btnUndo').disabled=noUndo;
+  document.getElementById('btnHint').disabled=noHint;
   document.getElementById('btnStop').disabled=!autoPlay;
   const ml=document.getElementById('mlist');
   ml.innerHTML = moves.length
@@ -1350,20 +1876,29 @@ function updateUI(){
   updateWinBar();
 }
 document.addEventListener('keydown',e=>{
+  // 焦点在输入控件上时不抢快捷键（否则选难度时按 N 会莫名其妙开新局）
+  const tag=(e.target.tagName||'').toLowerCase();
+  if(tag==='select'||tag==='input'||tag==='textarea'||e.metaKey||e.ctrlKey||e.altKey) return;
   if(e.key==='u'||e.key==='U') undo();
   if(e.key==='n'||e.key==='N') newGame();
   if(e.key==='h'||e.key==='H') hint();
 });
+let workerWarnEl=null;
 if(!usingWorker){
-  const d=document.createElement('div');
-  d.className='tip'; d.style.marginTop='8px'; d.style.color='#f0a020';
-  d.innerHTML='当前浏览器禁止在 <code>file://</code> 下创建 Worker，引擎已回退到主线程：'+
-    '思考期间页面会短暂无响应，单步已限制在 3 秒内。想要完整算力，'+
-    '在本目录执行 <code>python3 -m http.server 8000</code> 后访问 <code>localhost:8000</code>。';
-  document.querySelector('.panel .card:last-child').appendChild(d);
+  workerWarnEl=document.createElement('div');
+  workerWarnEl.className='tip';
+  workerWarnEl.style.marginTop='8px';
+  workerWarnEl.style.color='var(--acc)';
+  workerWarnEl.innerHTML=t('workerWarn');
+  document.getElementById('tipBox').appendChild(workerWarnEl);
 }
+// 窄屏默认收起设置卡——展开的话棋盘下面要滚很久才够得到「新局/悔棋」。
+// 只在首屏按宽度决定一次，之后尊重用户自己的展开/收起。
+if(window.innerWidth<821) document.getElementById('setCard').open=false;
+
 window.addEventListener('resize',layout);
-layout(); newGame();
+window.addEventListener('orientationchange',()=>setTimeout(layout,120));
+applyLang(); layout(); newGame();
 </script>
 </body>
 </html>
