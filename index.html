@@ -291,6 +291,15 @@
 
 <canvas id="bg" aria-hidden="true"></canvas>
 
+<noscript>
+  <div style="max-width:640px;margin:14px auto;padding:14px 16px;border-radius:12px;
+              background:#3a2408;border:1px solid #7a5210;color:#ffd79a;font-size:13px;line-height:1.7">
+    这个页面的棋盘与 AI 全部由 JavaScript 驱动，当前环境没有执行脚本，所以棋盘是空的。<br>
+    常见原因：用 iOS「文件」App 的预览打开——它只渲染 HTML/CSS，不跑脚本。
+    请改用浏览器打开（或把页面托管后访问其网址）。
+  </div>
+</noscript>
+
 <header>
   <div class="brand">
     <h1><span>●</span> <span data-i18n="title">五子棋</span></h1>
@@ -311,7 +320,7 @@
 <div class="wrap">
   <div class="boardcol">
     <div class="boardbox">
-      <canvas id="cv"></canvas>
+      <canvas id="cv" width="560" height="560"></canvas>
       <div class="overlay" id="ov">
         <div class="ocard">
           <h2 id="ovt">—</h2>
