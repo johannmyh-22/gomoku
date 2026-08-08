@@ -150,5 +150,4 @@ node ab_lv5.js --arms=rootsort --openings=24   # control + A/B, uses all cores
 
 ## License
 
-Not yet specified. (If you want this to be reusable by others, add a `LICENSE` file —
-MIT is the usual choice for something like this.)
+MIT — see [LICENSE](LICENSE).
