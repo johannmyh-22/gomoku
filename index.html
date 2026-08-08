@@ -43,25 +43,18 @@
     padding:clamp(12px,3vw,22px) 12px calc(28px + env(safe-area-inset-bottom));
     gap:16px;-webkit-font-smoothing:antialiased;
   }
-  /* 玻璃背后必须有东西可透，否则只是「亮一点的方块」。这层彩色光斑就是被透的内容。 */
-  body::before{
-    content:'';position:fixed;inset:-25%;z-index:-2;pointer-events:none;
-    background:
-      radial-gradient(30vw 30vw at 78%  6%, rgba(255,150,40,.70), transparent 62%),
-      radial-gradient(34vw 34vw at 95% 42%, rgba(48,130,255,.68), transparent 64%),
-      radial-gradient(32vw 32vw at 74% 78%, rgba(150,80,255,.62), transparent 64%),
-      radial-gradient(26vw 26vw at 98% 96%, rgba(0,205,190,.50), transparent 62%),
-      radial-gradient(30vw 30vw at  4% 18%, rgba(255,120,60,.42), transparent 62%),
-      radial-gradient(28vw 28vw at  2% 92%, rgba(60,120,255,.40), transparent 62%);
-    filter:blur(18px);
+  /* 水粉背景：玻璃背后必须有东西可透，否则只是「亮一点的方块」。
+     用一张低分辨率画布画柔和色团，再由浏览器双线性放大到全屏——放大本身就把色团
+     揉成了水粉那种没有硬边的过渡，比十几个 CSS 渐变便宜得多，也才有条件做动态。
+     颜色由胜率驱动：AI 占优则暖色地盘变大，你占优则冷色变大，交界处两色互相渗透。 */
+  #bg{
+    position:fixed;inset:0;width:100%;height:100%;z-index:-2;pointer-events:none;
+    display:block;
   }
-  /* 这层刻意保持静止。实测：让它缓慢漂移会把每块玻璃的 backdrop 每帧都判定为「背景变了」
-     而重新模糊 —— 桌面 16.7ms -> 83ms、手机 16.7ms -> 33ms。动感换不来这个代价，
-     玻璃质感靠模糊和边缘高光已经足够。 */
   /* 压暗一层，保证玻璃上的文字始终够对比度——光斑再亮也不会糊掉正文 */
   body::after{
     content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;
-    background:linear-gradient(180deg,rgba(5,8,14,.26),rgba(5,8,14,.44));
+    background:linear-gradient(180deg,rgba(5,8,14,.42),rgba(5,8,14,.56));
   }
 
   /* ---------- 玻璃基类 ---------- */
@@ -181,7 +174,8 @@
   }
   details.card>summary::-webkit-details-marker{display:none}
   details.card>summary:hover{color:var(--fg)}
-  details.card>summary::after{content:'▸';font-size:12px;transition:transform .22s;opacity:.8}
+  details.card>summary::after{content:'▸';font-size:12px;opacity:.8;
+    transition:transform .34s cubic-bezier(.34,1.4,.5,1)}
   details.card[open]>summary::after{transform:rotate(90deg)}
   details.card>.body{padding:0 16px 15px;position:relative;z-index:1}
 
@@ -208,15 +202,19 @@
   select:focus-visible,button:focus-visible,.sw:focus-visible,summary:focus-visible{
     outline:2px solid var(--acc2);outline-offset:2px}
   input[type=range]{padding:0;width:128px;accent-color:var(--acc);cursor:pointer;box-shadow:none}
-  .sw{position:relative;width:44px;height:24px;border-radius:13px;cursor:pointer;transition:.2s;flex:0 0 auto;
+  .sw{position:relative;width:44px;height:24px;border-radius:13px;cursor:pointer;flex:0 0 auto;
     background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);
-    box-shadow:inset 0 1px 3px rgba(0,0,0,.35)}
+    box-shadow:inset 0 1px 3px rgba(0,0,0,.35);
+    transition:background .28s ease,border-color .28s ease,box-shadow .28s ease}
+  /* 旋钮走 transform 而不是 left：这样「按下拉长」改宽度时不会把位移一起顶歪 */
   .sw::after{content:'';position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;
-    background:linear-gradient(180deg,#fff,#c9d2de);transition:.2s;
-    box-shadow:0 2px 6px rgba(0,0,0,.45)}
-  .sw.on{background:linear-gradient(180deg,rgba(255,179,64,.85),rgba(232,144,26,.85));
-    border-color:rgba(255,200,120,.5);box-shadow:inset 0 1px 0 rgba(255,255,255,.35),0 0 16px rgba(255,179,64,.35)}
-  .sw.on::after{left:22px}
+    background:linear-gradient(180deg,#fff,#c9d2de);box-shadow:0 2px 6px rgba(0,0,0,.45);
+    transition:transform .38s cubic-bezier(.34,1.42,.5,1),width .22s ease}
+  .sw.on{background:linear-gradient(180deg,rgba(255,179,64,.9),rgba(232,144,26,.9));
+    border-color:rgba(255,200,120,.5);box-shadow:inset 0 1px 0 rgba(255,255,255,.35),0 0 18px rgba(255,179,64,.4)}
+  .sw.on::after{transform:translateX(20px)}
+  .sw:active::after{width:23px}
+  .sw.on:active::after{transform:translateX(15px);width:23px}
 
   .btns{display:grid;grid-template-columns:repeat(2,1fr);gap:9px;position:relative;z-index:1}
   button{
@@ -228,7 +226,20 @@
   }
   button:hover:not(:disabled){background:linear-gradient(155deg,rgba(255,255,255,.18),rgba(255,255,255,.08));
     border-color:rgba(255,255,255,.26)}
-  button:active:not(:disabled){transform:translateY(1px) scale(.985)}
+  button:active:not(:disabled){transform:translateY(1px) scale(.976)}
+  /* 点击涟漪：以按下点为圆心扩散。--rx/--ry 由 JS 在 pointerdown 时写入 */
+  button::after{
+    content:'';position:absolute;left:var(--rx,50%);top:var(--ry,50%);
+    width:0;height:0;border-radius:50%;transform:translate(-50%,-50%);
+    background:radial-gradient(circle,rgba(255,255,255,.5),rgba(255,255,255,0) 68%);
+    opacity:0;pointer-events:none;
+  }
+  button.rip::after{animation:ripple .58s cubic-bezier(.22,.7,.3,1)}
+  @keyframes ripple{
+    0%  {width:0;height:0;opacity:.75}
+    100%{width:300px;height:300px;opacity:0}
+  }
+  button.pri::after{background:radial-gradient(circle,rgba(255,255,255,.75),rgba(255,255,255,0) 68%)}
   button:disabled{opacity:.32;cursor:not-allowed}
   button.pri{
     background:linear-gradient(180deg,rgba(255,190,80,.95),rgba(224,140,20,.95));
@@ -273,6 +284,8 @@
 </style>
 </head>
 <body>
+
+<canvas id="bg" aria-hidden="true"></canvas>
 
 <header>
   <div class="brand">
@@ -1242,6 +1255,95 @@ if(!usingWorker){
   engine=shim;
 }
 
+/* ---------- 水粉背景 ----------
+   地盘按胜率划分：AI 占优 -> 暖色（琥珀/橘）铺得多，你占优 -> 冷色（蓝/青/紫）铺得多。
+
+   怎么做到「交界像混色」：每个色团都同时持有一个暖色和一个冷色，实际颜色由它在
+   x 轴上相对分界线的位置插值而来，过渡带很宽（SOFT）。所以靠近分界的色团本身就是
+   两色调和出来的中间色，而不是两块颜色硬拼在一起——这正是水粉湿画法的样子。
+
+   性能：画布只有 ~1/5 分辨率，放大时的双线性插值顺带把色团揉软（省掉昂贵的全屏
+   CSS blur）。重绘按需限速——静止时约 8fps、胜率变化时约 24fps，因为每次重绘都会
+   让上面每块玻璃重算一次 backdrop（上一轮实测：不限速会把 60fps 打到 12fps）。 */
+const BG=(function(){
+  const el=document.getElementById('bg'), c=el.getContext('2d');
+  const WARM=[[255,150,40],[255,104,56],[255,193,88],[255,126,72]];   // AI
+  const COOL=[[52,130,255],[0,201,196],[132,84,255],[64,158,255]];    // 你
+  const N=14, SOFT=0.30;                 // SOFT 越大，交界的调和带越宽
+  const blobs=[];
+  let seed=20260808;
+  const rnd=()=>((seed=(seed*1103515245+12345)&0x7fffffff)/0x7fffffff);
+  for(let i=0;i<N;i++) blobs.push({
+    bx:-0.12+rnd()*1.24, by:rnd(), r:0.24+rnd()*0.24,
+    fx:0.10+rnd()*0.22, fy:0.08+rnd()*0.20,   // 各自不同的漂移频率 -> 不会整体同步晃
+    ph:rnd()*6.283, ax:0.05+rnd()*0.07, ay:0.04+rnd()*0.07,
+    a:0.10+rnd()*0.09, pal:i%4,             // 单团很淡，靠层叠出浓淡，一边独大时也不会糊成一片
+  });
+
+  let target=0.5, cur=0.5, t=0, W=0, H=0, last=0, raf=0;
+  const reduce=window.matchMedia&&window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+
+  function resize(){
+    // 1/5 分辨率就够——反正整幅图都是柔和过渡，放大后看不出来
+    W=Math.max(72,Math.round(window.innerWidth/5));
+    H=Math.max(48,Math.round(window.innerHeight/5));
+    el.width=W; el.height=H;
+    paint();
+  }
+  const smooth=x=>{ x=x<0?0:(x>1?1:x); return x*x*(3-2*x); };
+
+  function paint(){
+    c.globalCompositeOperation='source-over';
+    c.fillStyle='#070a10'; c.fillRect(0,0,W,H);
+    c.globalCompositeOperation='screen';       // 深底上叠色，像层层罩染
+    const R=Math.max(W,H);
+    for(const b of blobs){
+      const x=(b.bx+Math.sin(t*b.fx+b.ph)*b.ax);
+      const y=(b.by+Math.cos(t*b.fy+b.ph*1.7)*b.ay);
+      // 分界线随胜率移动。行程刻意超出画面两侧（-0.28 ~ 1.38）：不这样的话，
+      // 一方 95% 时另一端仍会残留对方的色团，「地盘被吃掉」的感觉就出不来。
+      const edge=-0.28+cur*1.66;
+      const m=smooth((x-edge)/SOFT+0.5);
+      const wa=WARM[b.pal], co=COOL[b.pal];
+      const r=Math.round(wa[0]+(co[0]-wa[0])*m),
+            g=Math.round(wa[1]+(co[1]-wa[1])*m),
+            bl=Math.round(wa[2]+(co[2]-wa[2])*m);
+      const px=x*W, py=y*H, pr=b.r*R;
+      const grd=c.createRadialGradient(px,py,0,px,py,pr);
+      grd.addColorStop(0,   'rgba('+r+','+g+','+bl+','+b.a+')');
+      grd.addColorStop(0.55,'rgba('+r+','+g+','+bl+','+(b.a*0.42).toFixed(3)+')');
+      grd.addColorStop(1,   'rgba('+r+','+g+','+bl+',0)');
+      c.fillStyle=grd;
+      c.beginPath(); c.arc(px,py,pr,0,6.2832); c.fill();
+    }
+    c.globalCompositeOperation='source-over';
+  }
+
+  function frame(ts){
+    raf=0;
+    const moving=Math.abs(cur-target)>0.0015;
+    // 限速：胜率变化时画顺一点，静止时慢慢飘就行
+    const gap=moving?42:125;
+    if(ts-last>=gap){
+      const dt=(ts-last)/1000; last=ts;
+      if(moving) cur+=(target-cur)*Math.min(1,dt*1.25);  // 指数趋近，起步快收尾缓（约 1.5s 洇满）
+      else cur=target;
+      if(!reduce) t+=dt*0.55;
+      paint();
+    }
+    if(moving||!reduce) raf=requestAnimationFrame(frame);
+  }
+  function kick(){ if(!raf){ last=performance.now()-200; raf=requestAnimationFrame(frame); } }
+
+  window.addEventListener('resize',resize);
+  resize();
+  if(!reduce) kick();
+  return {
+    /* p = AI 的胜率（0~1）。updateWinBar 每次算完都会喂进来。 */
+    set(p){ if(Math.abs(p-target)<0.002) return; target=p; if(reduce){ cur=p; paint(); } else kick(); }
+  };
+})();
+
 /* ---- 画布 ---- */
 const cv=document.getElementById('cv'), ctx=cv.getContext('2d');
 let CELL=36, MARGIN=26, DPR=Math.min(window.devicePixelRatio||1,2);
@@ -1571,6 +1673,7 @@ function updateWinBar(){
     p = winProb(lastScore);
     if(lastScoreSide!==leftSide) p = 1-p;      // 换算到左端视角
   }
+  BG.set(p);                    // 背景地盘跟着胜率走（左端=AI=暖色）
   const l=Math.round(p*100);
   document.getElementById('wbFill').style.width = l+'%';
   document.getElementById('wbAi').textContent = l+'%';
@@ -1609,6 +1712,45 @@ function setSw(id,v){
 document.querySelectorAll('.sw').forEach(sw=>{
   sw.addEventListener('keydown',e=>{
     if(e.key===' '||e.key==='Enter'){ e.preventDefault(); sw.click(); }
+  });
+});
+
+/* ---- 交互动效 ---- */
+const REDUCE=window.matchMedia&&window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+
+// 按钮涟漪：把按下点写进 CSS 变量，重启动画（先摘 class 再强制回流，否则连点第二下不触发）
+document.addEventListener('pointerdown',e=>{
+  const btn=e.target.closest('button');
+  if(!btn||btn.disabled||REDUCE) return;
+  const r=btn.getBoundingClientRect();
+  btn.style.setProperty('--rx',(e.clientX-r.left)+'px');
+  btn.style.setProperty('--ry',(e.clientY-r.top)+'px');
+  btn.classList.remove('rip'); void btn.offsetWidth; btn.classList.add('rip');
+},{passive:true});
+
+/* 原生 details 不能给高度做过渡，接管点击用 WAAPI 自己动。
+   仍然通过设置 .open 来切换，所以 toggle 事件、键盘操作、语义都保持不变。 */
+document.querySelectorAll('details.card').forEach(d=>{
+  const sum=d.querySelector('summary'), body=d.querySelector('.body');
+  if(!sum||!body) return;
+  let anim=null;
+  sum.addEventListener('click',e=>{
+    e.preventDefault();
+    if(REDUCE){ d.open=!d.open; return; }
+    if(anim) anim.cancel();
+    const opening=!d.open;
+    if(opening) d.open=true;                    // 先展开才量得到自然高度
+    const h=body.scrollHeight;
+    body.style.overflow='hidden';
+    anim=body.animate(
+      opening ? [{height:0,opacity:0},{height:h+'px',opacity:1}]
+              : [{height:h+'px',opacity:1},{height:0,opacity:0}],
+      {duration:opening?300:240, easing:opening?'cubic-bezier(.25,.9,.3,1)':'cubic-bezier(.4,0,.65,1)'}
+    );
+    anim.onfinish=()=>{
+      anim=null; body.style.overflow='';
+      if(!opening) d.open=false;                // 收起动画放完再真正关闭
+    };
   });
 });
 document.getElementById('nums').onclick=function(){ numsOn=!numsOn; setSw('nums',numsOn); draw(); };
