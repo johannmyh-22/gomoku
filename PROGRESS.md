@@ -266,10 +266,32 @@ LV4 那个 9:15 当时就标注过只有约 1.2 个标准差、不算显著。�
 **分界线为什么不会把颜色割裂**：它是 `x = edgeAt(y)` 的单值曲线，对每个 y 只有一个
 取值，所以「曲线左边全暖、右边全冷」恒成立，两种颜色各自始终连通，不会碎成色块。
 
-### 界面自测脚本（都在 scratchpad，需先起 `python3 -m http.server 8765`）
-`regress.mjs` 三视口功能回归 · `perf.mjs`/`perf3.mjs` 帧率 · `inter.mjs` 交互动效 ·
-`bgtest.mjs` 背景是否随胜率变色 · `transtest.mjs` 过渡是否自然。
-依赖 playwright（`npm i playwright`，浏览器用 `/opt/pw-browsers/chromium`）。
+### ⚠️ 界面自测脚本**没有入库**，需要时得重写
+曾经写过 `regress.mjs`（三视口功能回归）、`perf.mjs`/`perf3.mjs`（帧率）、`inter.mjs`
+（交互动效）、`bgtest.mjs`（背景随胜率变色）、`transtest.mjs`（过渡），但**这些文件从未
+提交，仓库里一个都没有**——别照着这段去 `scratchpad/` 里找，会扑空。
+
+重写的话套路很短：`npm i playwright`（浏览器用现成的 `/opt/pw-browsers/chromium`，
+**不要跑 `playwright install`**）+ `python3 -m http.server 8765`，然后 `page.goto` 各视口截图、
+读 `document.documentElement.scrollWidth` 判溢出。**跑完记得删掉 `node_modules/`、
+`package.json`、`package-lock.json`**——`.gitignore` 没盖这三个，留着会被误提交。
+
+### 2026-08-08 上传前的界面复验（结论：已达标，不再优化）
+headless Chromium 四视口 1440×900 / 820×1180 / 390×844 / 320×568：
+
+| 检查 | 结果 |
+|---|---|
+| 横向溢出 | 四档全部 `scrollWidth === clientWidth`，越界元素 0 |
+| console / pageerror | 0 |
+| 棋盘自适应宽度 | 638 → 560 → 342 → 264px，320px 下仍完整可读 |
+| 功能烟测 | 落子 H8 → AI 应手 I7 → 胜率条 49/51 → `U` 悔棋清空，全通 |
+| 键盘可达性 | 15 个可聚焦元素；开关 Enter 后 `aria-checked` 正确翻转 |
+| i18n | `<html lang>` 与 `document.title` 随语言切换，不只换可见文字 |
+| `prefers-reduced-motion` | 生效 |
+
+**已知且**故意**不修的一处**：桌面 1440×900 下页面高 962px，有约 60px 轻微滚动，底部提示卡
+被裁一角。修法是给棋盘加 `min(…, 100vh - X)` 高度上限，但属纯口味，改动要重跑整套四视口
+回归，收益不成比例。
 
 ---
 
@@ -290,19 +312,21 @@ LV4 那个 9:15 当时就标注过只有约 1.2 个标准差、不算显著。�
 - 无开局库
 - 主搜索未加 aspiration window、反着法启发（counter-move）、null move
 
-### 4. 等用户拍板的两件事（**不要替他决定**）
-- **仓库目前是私有的，`main` 还停在旧版本**（没有 VCT 置换表、没有新界面、没有 README）。
-  开 GitHub Pages 需要：把本分支合进 `main` + 仓库改公开 + 在 Settings→Pages 里
-  选 `main` / `(root)`。改可见性只能他本人在 GitHub 设置里操作。
+### 4. 只剩用户本人能做的两件事（**不要替他决定**）
+- **仓库可见性**：`main` 已经带上 VCT 置换表 + 新界面 + README（PR #1 已合），但仓库仍是
+  私有。开 GitHub Pages 还差两步：仓库改公开 + Settings→Pages 选 `main` / `(root)`，
+  **这两步只能他本人在 GitHub 设置里点**。
 - **README 的许可证一节是空的**。加 `LICENSE` 需要他的署名，不该代填。
 
 ---
 
 ## 六、下一个窗口从这里接手
 
-**当前分支**：`claude/vct-substitution-table-ab-zz5vci`，已全部推送，工作区干净。
+**当前状态**：`claude/vct-substitution-table-ab-zz5vci` 已经过 PR #1 合进 `main`，
+`main` 就是最新版本。后续新工作请从 `main` 开新分支，**不要再往这条已合并的分支上堆提交**。
 
-**已完成**：引擎侧 VCT 置换表（实测中性、保留但不算收益）；界面全套重做（见「一之五」）。
+**已完成**：引擎侧 VCT 置换表（实测中性、保留但不算收益）；界面全套重做（见「一之五」，
+2026-08-08 已做上传前四视口复验，结论是达标、不再优化）。
 
 **最近一次结论**：LV5 的 `rootsort` 48 局 26:21（0.73σ），未达标、未合入，已记入
 「试过但无收益」表。若还想追这条，需要的是**数百局的样本量**，不是新解释——
