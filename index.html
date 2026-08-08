@@ -22,7 +22,10 @@
 
     /* 玻璃配方：亮度靠白色叠加，通透感靠 backdrop-filter，边缘靠 inset 高光。
        三个变量统一控制，改一处全局生效。 */
-    --glass-bg:linear-gradient(155deg,rgba(255,255,255,.16),rgba(255,255,255,.06) 55%,rgba(255,255,255,.09));
+    /* 两层：上面是玻璃的白色反光，下面压一层暗底。背景现在很艳，靠这层暗底
+       把文字对比度稳住——比拿黑纱盖住整幅背景好，颜色仍然透得出来。 */
+    --glass-bg:linear-gradient(155deg,rgba(255,255,255,.17),rgba(255,255,255,.06) 55%,rgba(255,255,255,.10)),
+               linear-gradient(0deg,rgba(7,11,19,.46),rgba(7,11,19,.46));
     --glass-blur:blur(30px) saturate(190%) brightness(1.08);
     --glass-edge:
       inset 0 1.5px 0 rgba(255,255,255,.55),    /* 顶缘接光——最能让人认出是玻璃的一笔 */
@@ -54,7 +57,7 @@
   /* 压暗一层，保证玻璃上的文字始终够对比度——光斑再亮也不会糊掉正文 */
   body::after{
     content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;
-    background:linear-gradient(180deg,rgba(5,8,14,.42),rgba(5,8,14,.56));
+    background:linear-gradient(180deg,rgba(5,8,14,.16),rgba(5,8,14,.26));
   }
 
   /* ---------- 玻璃基类 ---------- */
@@ -220,8 +223,9 @@
   button{
     color:var(--fg);border-radius:var(--r-sm);padding:11px 12px;font-size:13px;cursor:pointer;
     transition:.16s;font-family:inherit;font-weight:550;position:relative;overflow:hidden;
-    background:linear-gradient(155deg,rgba(255,255,255,.17),rgba(255,255,255,.07));
-    border:1px solid rgba(255,255,255,.17);
+    background:linear-gradient(155deg,rgba(255,255,255,.19),rgba(255,255,255,.08)),
+               linear-gradient(0deg,rgba(7,11,19,.34),rgba(7,11,19,.34));
+    border:1px solid rgba(255,255,255,.18);
     box-shadow:inset 0 1px 0 rgba(255,255,255,.3),0 4px 14px rgba(0,0,0,.28);
   }
   button:hover:not(:disabled){background:linear-gradient(155deg,rgba(255,255,255,.18),rgba(255,255,255,.08));
@@ -1267,17 +1271,19 @@ if(!usingWorker){
    让上面每块玻璃重算一次 backdrop（上一轮实测：不限速会把 60fps 打到 12fps）。 */
 const BG=(function(){
   const el=document.getElementById('bg'), c=el.getContext('2d');
-  const WARM=[[255,150,40],[255,104,56],[255,193,88],[255,126,72]];   // AI
-  const COOL=[[52,130,255],[0,201,196],[132,84,255],[64,158,255]];    // 你
-  const N=14, SOFT=0.30;                 // SOFT 越大，交界的调和带越宽
+  const WARM=[[255,138,20],[255,72,36],[255,186,54],[255,102,48]];    // AI（高饱和）
+  const COOL=[[28,120,255],[0,214,204],[142,64,255],[36,158,255]];    // 你（高饱和）
+  // 底层横向渐变用的深色版本——负责把整幅背景铺满，色团只在它上面叠浓淡
+  const WARM_BASE=[132,44,4], COOL_BASE=[12,44,128];
+  const N=18, SOFT=0.34;                 // SOFT 越大，交界的调和带越宽
   const blobs=[];
   let seed=20260808;
   const rnd=()=>((seed=(seed*1103515245+12345)&0x7fffffff)/0x7fffffff);
   for(let i=0;i<N;i++) blobs.push({
-    bx:-0.12+rnd()*1.24, by:rnd(), r:0.24+rnd()*0.24,
-    fx:0.10+rnd()*0.22, fy:0.08+rnd()*0.20,   // 各自不同的漂移频率 -> 不会整体同步晃
-    ph:rnd()*6.283, ax:0.05+rnd()*0.07, ay:0.04+rnd()*0.07,
-    a:0.10+rnd()*0.09, pal:i%4,             // 单团很淡，靠层叠出浓淡，一边独大时也不会糊成一片
+    bx:-0.15+rnd()*1.30, by:-0.1+rnd()*1.2, r:0.34+rnd()*0.34,
+    fx:0.13+rnd()*0.30, fy:0.11+rnd()*0.28,   // 各自不同的漂移频率 -> 不会整体同步晃
+    ph:rnd()*6.283, ax:0.09+rnd()*0.11, ay:0.07+rnd()*0.10,
+    a:0.16+rnd()*0.14, pal:i%4,
   });
 
   let target=0.5, cur=0.5, t=0, W=0, H=0, last=0, raf=0;
@@ -1293,16 +1299,31 @@ const BG=(function(){
   const smooth=x=>{ x=x<0?0:(x>1?1:x); return x*x*(3-2*x); };
 
   function paint(){
+    const edge=-0.28+cur*1.66;
     c.globalCompositeOperation='source-over';
-    c.fillStyle='#070a10'; c.fillRect(0,0,W,H);
+    // 底层：整幅横向渐变。没有这层的话，色团之间会漏出黑底，看着就是「暗场里的几盏灯」
+    // 而不是一整幅画。取 9 个采样点让分界的调和带自然铺开。
+    const lg=c.createLinearGradient(0,0,W,0);
+    for(let i=0;i<=8;i++){
+      const x=i/8, m=smooth((x-edge)/SOFT+0.5);
+      lg.addColorStop(x,'rgb('+
+        Math.round(WARM_BASE[0]+(COOL_BASE[0]-WARM_BASE[0])*m)+','+
+        Math.round(WARM_BASE[1]+(COOL_BASE[1]-WARM_BASE[1])*m)+','+
+        Math.round(WARM_BASE[2]+(COOL_BASE[2]-WARM_BASE[2])*m)+')');
+    }
+    c.fillStyle=lg; c.fillRect(0,0,W,H);
+    // 上下压暗一点，避免整幅平得像色卡
+    const vg=c.createLinearGradient(0,0,0,H);
+    vg.addColorStop(0,'rgba(0,0,0,.34)'); vg.addColorStop(.45,'rgba(0,0,0,0)');
+    vg.addColorStop(1,'rgba(0,0,0,.42)');
+    c.fillStyle=vg; c.fillRect(0,0,W,H);
     c.globalCompositeOperation='screen';       // 深底上叠色，像层层罩染
     const R=Math.max(W,H);
     for(const b of blobs){
       const x=(b.bx+Math.sin(t*b.fx+b.ph)*b.ax);
       const y=(b.by+Math.cos(t*b.fy+b.ph*1.7)*b.ay);
-      // 分界线随胜率移动。行程刻意超出画面两侧（-0.28 ~ 1.38）：不这样的话，
+      // 分界线随胜率移动，行程刻意超出画面两侧（见 paint 开头的 edge）：不这样的话，
       // 一方 95% 时另一端仍会残留对方的色团，「地盘被吃掉」的感觉就出不来。
-      const edge=-0.28+cur*1.66;
       const m=smooth((x-edge)/SOFT+0.5);
       const wa=WARM[b.pal], co=COOL[b.pal];
       const r=Math.round(wa[0]+(co[0]-wa[0])*m),
@@ -1323,12 +1344,12 @@ const BG=(function(){
     raf=0;
     const moving=Math.abs(cur-target)>0.0015;
     // 限速：胜率变化时画顺一点，静止时慢慢飘就行
-    const gap=moving?42:125;
+    const gap=moving?42:70;
     if(ts-last>=gap){
       const dt=(ts-last)/1000; last=ts;
       if(moving) cur+=(target-cur)*Math.min(1,dt*1.25);  // 指数趋近，起步快收尾缓（约 1.5s 洇满）
       else cur=target;
-      if(!reduce) t+=dt*0.55;
+      if(!reduce) t+=dt*1.15;
       paint();
     }
     if(moving||!reduce) raf=requestAnimationFrame(frame);
