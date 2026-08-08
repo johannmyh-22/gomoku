@@ -15,23 +15,27 @@
 <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%23d9a05b'/><circle cx='25' cy='25' r='12.5' fill='%23141418'/><circle cx='40' cy='40' r='12.5' fill='%23fbfbf9'/></svg>">
 <style>
   :root{
-    /* 底色偏冷、棋盘偏暖，靠这个冷暖对比把注意力压在棋盘上 */
-    --bg:#0b0e14; --surface:#141922; --surface2:#1b2230; --line:#26303f;
-    --fg:#e8eef6; --dim:#8d9bb0; --dimmer:#5f6b7d;
-    --acc:#f5a623; --acc-d:#d98c0e; --acc2:#5aa9ff; --good:#3fb950; --bad:#f0553f;
+    --fg:#f2f6fb; --dim:#a8b6c9; --dimmer:#77869a;
+    --acc:#ffb340; --acc-d:#e8901a; --acc2:#6cb6ff; --good:#4ad66d; --bad:#ff6b5a;
     --wood:#dda663; --wood2:#c98b45;
-    --r:14px; --r-sm:9px;
-    --shadow:0 20px 50px rgba(0,0,0,.5);
-    --ring:0 0 0 1px rgba(255,255,255,.07);
+    --r:20px; --r-sm:13px;
+
+    /* 玻璃配方：亮度靠白色叠加，通透感靠 backdrop-filter，边缘靠 inset 高光。
+       三个变量统一控制，改一处全局生效。 */
+    --glass-bg:linear-gradient(155deg,rgba(255,255,255,.16),rgba(255,255,255,.06) 55%,rgba(255,255,255,.09));
+    --glass-blur:blur(30px) saturate(190%) brightness(1.08);
+    --glass-edge:
+      inset 0 1.5px 0 rgba(255,255,255,.55),    /* 顶缘接光——最能让人认出是玻璃的一笔 */
+      inset 0 -1px 0 rgba(255,255,255,.12),     /* 底缘微反射 */
+      inset 1px 0 0 rgba(255,255,255,.14),
+      inset -1px 0 0 rgba(255,255,255,.14);
+    --glass-drop:0 10px 34px rgba(0,0,0,.42);
   }
   *{box-sizing:border-box;margin:0;padding:0}
   html{-webkit-text-size-adjust:100%}
   body{
-    min-height:100dvh;
-    background:
-      radial-gradient(1100px 700px at 50% -15%, #1b2536 0%, transparent 60%),
-      radial-gradient(800px 600px at 90% 100%, #16202e 0%, transparent 55%),
-      var(--bg);
+    min-height:100dvh;position:relative;isolation:isolate;
+    background:#070a10;
     color:var(--fg);
     font:14px/1.55 -apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB",
          "Microsoft YaHei","Helvetica Neue",Segoe UI,system-ui,sans-serif;
@@ -39,37 +43,93 @@
     padding:clamp(12px,3vw,22px) 12px calc(28px + env(safe-area-inset-bottom));
     gap:16px;-webkit-font-smoothing:antialiased;
   }
+  /* 玻璃背后必须有东西可透，否则只是「亮一点的方块」。这层彩色光斑就是被透的内容。 */
+  body::before{
+    content:'';position:fixed;inset:-25%;z-index:-2;pointer-events:none;
+    background:
+      radial-gradient(30vw 30vw at 78%  6%, rgba(255,150,40,.70), transparent 62%),
+      radial-gradient(34vw 34vw at 95% 42%, rgba(48,130,255,.68), transparent 64%),
+      radial-gradient(32vw 32vw at 74% 78%, rgba(150,80,255,.62), transparent 64%),
+      radial-gradient(26vw 26vw at 98% 96%, rgba(0,205,190,.50), transparent 62%),
+      radial-gradient(30vw 30vw at  4% 18%, rgba(255,120,60,.42), transparent 62%),
+      radial-gradient(28vw 28vw at  2% 92%, rgba(60,120,255,.40), transparent 62%);
+    filter:blur(18px);
+  }
+  /* 这层刻意保持静止。实测：让它缓慢漂移会把每块玻璃的 backdrop 每帧都判定为「背景变了」
+     而重新模糊 —— 桌面 16.7ms -> 83ms、手机 16.7ms -> 33ms。动感换不来这个代价，
+     玻璃质感靠模糊和边缘高光已经足够。 */
+  /* 压暗一层，保证玻璃上的文字始终够对比度——光斑再亮也不会糊掉正文 */
+  body::after{
+    content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;
+    background:linear-gradient(180deg,rgba(5,8,14,.26),rgba(5,8,14,.44));
+  }
+
+  /* ---------- 玻璃基类 ---------- */
+  .glass{
+    background:var(--glass-bg);
+    backdrop-filter:var(--glass-blur);
+    -webkit-backdrop-filter:var(--glass-blur);
+    border:1px solid rgba(255,255,255,.18);
+    box-shadow:var(--glass-edge),var(--glass-drop);
+    border-radius:var(--r);
+    position:relative;overflow:hidden;
+  }
+  /* 顶缘再压一道更亮更窄的高光线，模拟玻璃厚度边被照亮 */
+  .glass::after{
+    content:'';position:absolute;left:12%;right:12%;top:0;height:1px;pointer-events:none;
+    background:linear-gradient(90deg,transparent,rgba(255,255,255,.75),transparent);
+  }
+  /* 斜向高光：玻璃表面的镜面反射 */
+  .glass::before{
+    content:'';position:absolute;inset:0;pointer-events:none;border-radius:inherit;
+    background:linear-gradient(118deg,rgba(255,255,255,.26) 0%,rgba(255,255,255,.09) 20%,
+               transparent 40%,transparent 100%);
+  }
+  /* 不支持 backdrop-filter 的浏览器退回实心，不然会变成一片糊看不清字 */
+  @supports not ((backdrop-filter:blur(4px)) or (-webkit-backdrop-filter:blur(4px))){
+    .glass{background:#161c27;border-color:#2a3444}
+    .glass::before{display:none}
+  }
 
   /* ---------- 头部 ---------- */
-  header{
-    width:100%;max-width:1120px;display:flex;align-items:center;gap:12px;
-    justify-content:space-between;flex-wrap:wrap;
-  }
+  header{width:100%;max-width:1120px;display:flex;align-items:center;gap:12px;
+    justify-content:space-between;flex-wrap:wrap}
   .brand{display:flex;align-items:baseline;gap:11px;flex-wrap:wrap}
-  h1{font-size:clamp(17px,2.4vw,21px);font-weight:680;letter-spacing:.4px;white-space:nowrap}
+  h1{font-size:clamp(17px,2.4vw,21px);font-weight:680;letter-spacing:.4px;white-space:nowrap;
+    text-shadow:0 2px 12px rgba(0,0,0,.5)}
   h1 span{color:var(--acc)}
   .sub{color:var(--dim);font-size:12px;letter-spacing:.2px}
   .langbtn{
-    background:var(--surface);color:var(--dim);border:1px solid var(--line);
-    border-radius:999px;padding:5px 13px;font-size:12px;font-weight:600;cursor:pointer;
-    font-family:inherit;letter-spacing:.5px;transition:.15s;flex:0 0 auto;
+    color:var(--fg);border-radius:999px;padding:6px 15px;font-size:12px;font-weight:600;
+    cursor:pointer;font-family:inherit;letter-spacing:.5px;transition:.18s;flex:0 0 auto;
+    background:var(--glass-bg);
+    backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);
+    border:1px solid rgba(255,255,255,.16);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.28),0 4px 14px rgba(0,0,0,.3);
   }
-  .langbtn:hover{color:var(--fg);border-color:#3c4959;background:var(--surface2)}
+  .langbtn:hover{background:linear-gradient(155deg,rgba(255,255,255,.19),rgba(255,255,255,.08));
+    border-color:rgba(255,255,255,.28)}
 
   /* ---------- 胜率条 ---------- */
   .wbox{width:100%;max-width:1120px;display:flex;flex-direction:column;gap:7px;transition:opacity .25s}
   .wbox.busy{opacity:.5}
   .wbrow{display:flex;justify-content:space-between;align-items:center;font-size:12.5px;color:var(--dim)}
   .wbl{display:flex;align-items:center;gap:7px;min-width:0}
-  .wbl b{color:var(--fg);font-weight:700;font-variant-numeric:tabular-nums;font-size:14.5px;min-width:44px}
+  .wbl b{color:var(--fg);font-weight:700;font-variant-numeric:tabular-nums;font-size:14.5px;min-width:44px;
+    text-shadow:0 1px 8px rgba(0,0,0,.4)}
   .wbl:last-child b{text-align:right}
   .sq{width:9px;height:9px;border-radius:2.5px;display:inline-block;flex:0 0 auto}
-  .sq.ai{background:var(--acc)} .sq.me{background:var(--acc2)}
-  .wbnote{font-size:10.5px;letter-spacing:1.3px;text-transform:uppercase;opacity:.7;
+  .sq.ai{background:var(--acc);box-shadow:0 0 10px rgba(255,179,64,.7)}
+  .sq.me{background:var(--acc2);box-shadow:0 0 10px rgba(108,182,255,.7)}
+  .wbnote{font-size:10.5px;letter-spacing:1.3px;text-transform:uppercase;opacity:.72;
     white-space:nowrap;padding:0 8px}
-  .wb{height:10px;border-radius:6px;overflow:hidden;background:var(--acc2);
-      box-shadow:var(--ring) inset,0 2px 12px rgba(0,0,0,.4)}
-  #wbFill{height:100%;width:50%;background:linear-gradient(90deg,var(--acc),#ef8f36);
+  .wb{height:11px;border-radius:7px;overflow:hidden;position:relative;
+      background:linear-gradient(180deg,rgba(108,182,255,.92),rgba(74,150,235,.92));
+      border:1px solid rgba(255,255,255,.16);
+      box-shadow:inset 0 1px 0 rgba(255,255,255,.3),0 3px 14px rgba(0,0,0,.38)}
+  #wbFill{height:100%;width:50%;border-radius:6px 0 0 6px;
+      background:linear-gradient(180deg,var(--acc),#ef8f36);
+      box-shadow:inset 0 1px 0 rgba(255,255,255,.35);
       transition:width .55s cubic-bezier(.4,0,.2,1)}
 
   /* ---------- 主区 ---------- */
@@ -77,85 +137,107 @@
     justify-content:center;width:100%;max-width:1120px}
   .boardcol{display:flex;flex-direction:column;gap:12px;flex:0 0 auto;max-width:100%}
 
+  /* 棋盘本身保持不透明——落子要看得清楚，这里不做玻璃，只给外框玻璃质感的边和光 */
   .boardbox{
-    position:relative;border-radius:var(--r);overflow:hidden;
-    box-shadow:var(--shadow),var(--ring);
+    position:relative;border-radius:var(--r);overflow:hidden;flex:0 0 auto;max-width:100%;
     background:linear-gradient(160deg,var(--wood),var(--wood2));
-    flex:0 0 auto;max-width:100%;
+    border:1px solid rgba(255,255,255,.2);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,.35),
+      0 18px 46px rgba(0,0,0,.5),
+      0 0 0 1px rgba(0,0,0,.3);
   }
   canvas{display:block;touch-action:manipulation;cursor:pointer;max-width:100%}
   .overlay{
     position:absolute;inset:0;display:none;place-items:center;
-    background:rgba(6,9,14,.74);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);
-    animation:fade .25s ease;
+    background:rgba(6,9,14,.42);
+    backdrop-filter:blur(14px) saturate(150%);-webkit-backdrop-filter:blur(14px) saturate(150%);
+    animation:fade .3s ease;
   }
   @keyframes fade{from{opacity:0}to{opacity:1}}
   .overlay.on{display:grid}
-  .ocard{text-align:center;padding:24px 32px;border-radius:var(--r);background:var(--surface);
-    box-shadow:var(--ring),0 12px 40px rgba(0,0,0,.5);animation:pop .28s cubic-bezier(.2,.9,.3,1.3)}
-  @keyframes pop{from{transform:scale(.93);opacity:0}to{transform:scale(1);opacity:1}}
-  .ocard h2{font-size:23px;margin-bottom:6px;font-weight:680}
+  .ocard{text-align:center;padding:26px 34px;border-radius:var(--r);
+    background:var(--glass-bg);
+    backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);
+    border:1px solid rgba(255,255,255,.2);
+    box-shadow:var(--glass-edge),0 16px 44px rgba(0,0,0,.5);
+    animation:pop .32s cubic-bezier(.2,.9,.3,1.3)}
+  @keyframes pop{from{transform:scale(.92);opacity:0}to{transform:scale(1);opacity:1}}
+  .ocard h2{font-size:24px;margin-bottom:6px;font-weight:680;text-shadow:0 2px 14px rgba(0,0,0,.5)}
   .ocard p{color:var(--dim);font-size:13px;margin-bottom:16px}
-
 
   /* ---------- 侧栏 ---------- */
   .panel{flex:1 1 310px;min-width:290px;max-width:370px;display:flex;flex-direction:column;gap:12px}
-  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);
-    padding:13px 15px;transition:border-color .15s}
+  .card{padding:14px 16px}
   .card h3{font-size:11px;color:var(--dim);font-weight:650;letter-spacing:1.2px;
     margin-bottom:11px;text-transform:uppercase}
 
-  /* 可折叠卡片：用原生 details，免 JS、带键盘可达性 */
   details.card{padding:0}
   details.card>summary{
-    list-style:none;cursor:pointer;padding:13px 15px;display:flex;
+    list-style:none;cursor:pointer;padding:14px 16px;display:flex;
     align-items:center;justify-content:space-between;gap:8px;
     font-size:11px;color:var(--dim);font-weight:650;letter-spacing:1.2px;text-transform:uppercase;
-    user-select:none;-webkit-user-select:none;border-radius:var(--r);
+    user-select:none;-webkit-user-select:none;border-radius:var(--r);position:relative;z-index:1;
   }
   details.card>summary::-webkit-details-marker{display:none}
   details.card>summary:hover{color:var(--fg)}
-  details.card>summary::after{content:'▸';font-size:12px;transition:transform .2s;opacity:.8}
+  details.card>summary::after{content:'▸';font-size:12px;transition:transform .22s;opacity:.8}
   details.card[open]>summary::after{transform:rotate(90deg)}
-  details.card>.body{padding:0 15px 14px}
+  details.card>.body{padding:0 16px 15px;position:relative;z-index:1}
 
-  .status{display:flex;align-items:center;gap:11px;font-size:15.5px;font-weight:650}
+  .status{display:flex;align-items:center;gap:11px;font-size:15.5px;font-weight:650;
+    position:relative;z-index:1}
   .dot{width:15px;height:15px;border-radius:50%;flex:0 0 auto;
-    box-shadow:0 0 0 1px rgba(255,255,255,.22) inset}
-  .dot.b{background:linear-gradient(145deg,#55555c,#000)}
+    box-shadow:0 0 0 1px rgba(255,255,255,.28) inset,0 2px 8px rgba(0,0,0,.4)}
+  .dot.b{background:linear-gradient(145deg,#5b5b63,#000)}
   .dot.w{background:linear-gradient(145deg,#fff,#c4c4c0)}
   .thinking{color:var(--acc);font-size:12px;margin-top:7px;min-height:18px;
-    font-variant-numeric:tabular-nums}
+    font-variant-numeric:tabular-nums;position:relative;z-index:1}
 
-  .row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:9px 0}
+  .row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:10px 0}
   .row:first-child{margin-top:0} .row:last-child{margin-bottom:0}
   .row label{color:var(--dim);font-size:13px;min-width:0}
-  select,input[type=range]{background:#0d1219;color:var(--fg);border:1px solid var(--line);
-    border-radius:var(--r-sm);padding:6px 9px;font-size:13px;outline:none;font-family:inherit}
-  select{cursor:pointer;min-width:124px}
+  select,input[type=range]{
+    color:var(--fg);border:1px solid rgba(255,255,255,.14);
+    border-radius:var(--r-sm);padding:7px 10px;font-size:13px;outline:none;font-family:inherit;
+    background:rgba(255,255,255,.09);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.16);
+  }
+  select{cursor:pointer;min-width:126px}
+  select option{background:#141a24;color:var(--fg)}   /* 下拉展开项不继承半透明，否则不可读 */
   select:focus-visible,button:focus-visible,.sw:focus-visible,summary:focus-visible{
     outline:2px solid var(--acc2);outline-offset:2px}
-  input[type=range]{padding:0;width:128px;accent-color:var(--acc);cursor:pointer}
-  .sw{position:relative;width:42px;height:23px;background:#0d1219;border:1px solid var(--line);
-    border-radius:12px;cursor:pointer;transition:.18s;flex:0 0 auto}
-  .sw::after{content:'';position:absolute;top:2px;left:2px;width:17px;height:17px;border-radius:50%;
-    background:var(--dimmer);transition:.18s}
-  .sw.on{background:rgba(245,166,35,.22);border-color:var(--acc)}
-  .sw.on::after{left:21px;background:var(--acc)}
+  input[type=range]{padding:0;width:128px;accent-color:var(--acc);cursor:pointer;box-shadow:none}
+  .sw{position:relative;width:44px;height:24px;border-radius:13px;cursor:pointer;transition:.2s;flex:0 0 auto;
+    background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);
+    box-shadow:inset 0 1px 3px rgba(0,0,0,.35)}
+  .sw::after{content:'';position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;
+    background:linear-gradient(180deg,#fff,#c9d2de);transition:.2s;
+    box-shadow:0 2px 6px rgba(0,0,0,.45)}
+  .sw.on{background:linear-gradient(180deg,rgba(255,179,64,.85),rgba(232,144,26,.85));
+    border-color:rgba(255,200,120,.5);box-shadow:inset 0 1px 0 rgba(255,255,255,.35),0 0 16px rgba(255,179,64,.35)}
+  .sw.on::after{left:22px}
 
-  .btns{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+  .btns{display:grid;grid-template-columns:repeat(2,1fr);gap:9px;position:relative;z-index:1}
   button{
-    background:var(--surface2);color:var(--fg);border:1px solid var(--line);border-radius:var(--r-sm);
-    padding:10px 11px;font-size:13px;cursor:pointer;transition:.14s;font-family:inherit;font-weight:500;
+    color:var(--fg);border-radius:var(--r-sm);padding:11px 12px;font-size:13px;cursor:pointer;
+    transition:.16s;font-family:inherit;font-weight:550;position:relative;overflow:hidden;
+    background:linear-gradient(155deg,rgba(255,255,255,.17),rgba(255,255,255,.07));
+    border:1px solid rgba(255,255,255,.17);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.3),0 4px 14px rgba(0,0,0,.28);
   }
-  button:hover:not(:disabled){background:#242e3d;border-color:#3c4959}
-  button:active:not(:disabled){transform:translateY(1px)}
-  button:disabled{opacity:.35;cursor:not-allowed}
-  button.pri{background:linear-gradient(180deg,var(--acc),var(--acc-d));color:#1c1305;
-    border-color:#bd7a09;font-weight:650}
-  button.pri:hover:not(:disabled){background:linear-gradient(180deg,#ffb63a,#e89812)}
+  button:hover:not(:disabled){background:linear-gradient(155deg,rgba(255,255,255,.18),rgba(255,255,255,.08));
+    border-color:rgba(255,255,255,.26)}
+  button:active:not(:disabled){transform:translateY(1px) scale(.985)}
+  button:disabled{opacity:.32;cursor:not-allowed}
+  button.pri{
+    background:linear-gradient(180deg,rgba(255,190,80,.95),rgba(224,140,20,.95));
+    color:#241703;border-color:rgba(255,214,150,.55);font-weight:700;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.5),0 4px 18px rgba(255,160,40,.3);
+  }
+  button.pri:hover:not(:disabled){background:linear-gradient(180deg,#ffc65a,#f0a125)}
 
-  .stats{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:12px;color:var(--dim);
+  .stats{display:grid;grid-template-columns:auto 1fr;gap:7px 14px;font-size:12px;color:var(--dim);
     font-variant-numeric:tabular-nums}
   .stats b{color:var(--fg);font-weight:600;text-align:right;word-break:break-word}
 
@@ -164,9 +246,10 @@
     overscroll-behavior:contain}
   .moves i{color:var(--fg);font-style:normal}
 
-  .tip{font-size:11.5px;color:var(--dim);line-height:1.75}
-  .tip code{background:#0d1219;padding:1.5px 5px;border-radius:4px;color:var(--acc);
-    font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px}
+  .tip{font-size:11.5px;color:var(--dim);line-height:1.75;position:relative;z-index:1}
+  .tip code{background:rgba(255,255,255,.10);padding:1.5px 6px;border-radius:5px;color:var(--acc);
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;
+    border:1px solid rgba(255,255,255,.09)}
   .tip b{color:var(--fg);font-weight:600}
 
   /* ---------- 窄屏 ---------- */
@@ -174,17 +257,18 @@
     body{gap:13px}
     .wrap{gap:13px}
     .panel{max-width:none;flex-basis:100%;width:100%}
-    .wbnote{display:none}          /* 窄屏优先保住两端的百分比数字 */
-    /* 窄屏别让语言按钮被挤到单独一行：标题与副标题竖排，按钮留在右侧 */
+    .wbnote{display:none}
     header{flex-wrap:nowrap;align-items:flex-start}
     .brand{flex-direction:column;align-items:flex-start;gap:2px;min-width:0}
     .sub{font-size:11.5px}
-    /* 窄屏把按钮提到设置卡前面：设置卡很长，不该挡在棋盘和「新局/悔棋」中间 */
     #statusCard{order:1} #btnCard{order:2} #setCard{order:3}
     #anaCard{order:4} #movesCard{order:5} #tipCard{order:6}
+    /* 手机 GPU 上多层 backdrop-filter 会掉帧，降模糊半径 */
+    :root{--glass-blur:blur(18px) saturate(165%)}
   }
   @media(prefers-reduced-motion:reduce){
-    *,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}
+    *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;
+      transition-duration:.01ms!important}
   }
 </style>
 </head>
@@ -222,12 +306,12 @@
   </div>
 
   <div class="panel">
-    <div class="card" id="statusCard">
+    <div class="card glass" id="statusCard">
       <div class="status"><span class="dot b" id="turnDot"></span><span id="turnTxt">黑方落子</span></div>
       <div class="thinking" id="think">&nbsp;</div>
     </div>
 
-    <details class="card" id="setCard" open>
+    <details class="card glass" id="setCard" open>
       <summary data-i18n="settings">对局设置</summary>
       <div class="body">
         <div class="row"><label for="level" data-i18n="difficulty">难度</label>
@@ -261,7 +345,7 @@
       </div>
     </details>
 
-    <div class="card" id="btnCard">
+    <div class="card glass" id="btnCard">
       <div class="btns">
         <button class="pri" onclick="newGame()" data-i18n="newGame">新对局</button>
         <button id="btnUndo" onclick="undo()" data-i18n="undo">悔棋</button>
@@ -270,7 +354,7 @@
       </div>
     </div>
 
-    <details class="card" id="anaCard">
+    <details class="card glass" id="anaCard">
       <summary data-i18n="analysis">引擎分析</summary>
       <div class="body">
         <div class="stats">
@@ -284,12 +368,12 @@
       </div>
     </details>
 
-    <details class="card" id="movesCard">
+    <details class="card glass" id="movesCard">
       <summary data-i18n="moveList">着法记录</summary>
       <div class="body"><div class="moves" id="mlist">—</div></div>
     </details>
 
-    <div class="card" id="tipCard">
+    <div class="card glass" id="tipCard">
       <div class="tip" id="tipBox">
         <span data-i18n="keys">快捷键 <code>U</code> 悔棋 · <code>N</code> 新局 · <code>H</code> 求助</span><br>
         <span data-i18n="tipBody">地狱难度下 AI 会做完整的<b>连四杀（VCF）</b>、<b>连续威胁杀（VCT，含四三/双三）</b>与<b>杀棋规避</b>校验；
