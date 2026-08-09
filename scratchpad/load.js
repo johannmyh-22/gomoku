@@ -188,6 +188,7 @@ const FILTERS = {
   noTT: ORIG_FILTER,    // 反向 patch：合入后的引擎去掉 VCT TT（见 EXTRA）
   rootsort: ORIG_FILTER, deeper: ORIG_FILTER, partial: ORIG_FILTER,
   deeppartial: ORIG_FILTER, lv5all: ORIG_FILTER,
+  mateply: ORIG_FILTER,  // 杀棋分 ply 校正（见 EXTRA）
   off: `  if(false){}`,
   fix: `  if(cfg.rootFilter && cnt>1){
     var cleanChecked=0, lim=cnt<14?cnt:14;
@@ -357,7 +358,28 @@ const PARTIAL = [
   '    if(bi>=0){',
 ];
 
+// D. 杀棋分没做 ply 校正（正确性 bug，不是优化）。
+//    pvs() 里杀棋分是 `WIN-ply`，ply 从**根**算起；存进 TT 时直接 `ttVal[ti]=best`，
+//    存的是「从根数第几层将杀」而不是「距这个节点还有几步将杀」。同一局面在不同 ply
+//    被置换命中时，取回的杀棋距离就偏了 (存时ply - 取时ply) 步。
+//    标准修法：写表时 +ply 转成节点相对，读表时 -ply 转回根相对。
+//    MATE_BAND=WIN-1000 能干净地把真杀棋分（WIN-48 ~ WIN，MAXPLY=48）
+//    和 NEARWIN 启发分（80 万量级）分开，不会误伤后者。
+const MATEPLY = [
+  ['var TT_BITS=20, TT_SIZE=1<<TT_BITS, TT_MASK=TT_SIZE-1;',
+   'var TT_BITS=20, TT_SIZE=1<<TT_BITS, TT_MASK=TT_SIZE-1;\nvar MATE_BAND=WIN-1000;'],
+  ['      var tv=ttVal[ti], tf=ttFlag[ti];',
+   '      var tv=ttVal[ti], tf=ttFlag[ti];\n' +
+   '      if(tv>=MATE_BAND) tv-=ply; else if(tv<=-MATE_BAND) tv+=ply;'],
+  ['  ttKey[ti]=hash2; ttSide[ti]=side; ttVal[ti]=best; ttDepth[ti]=depth>127?127:depth;',
+   '  var _sv=best;\n' +
+   '  if(_sv>=MATE_BAND) _sv+=ply; else if(_sv<=-MATE_BAND) _sv-=ply;\n' +
+   '  ttKey[ti]=hash2; ttSide[ti]=side; ttVal[ti]=_sv; ttDepth[ti]=depth>127?127:depth;'],
+];
+
 const EXTRA = {
+  // 杀棋分 ply 校正（见上面 MATEPLY 注释）
+  mateply: MATEPLY,
   // think() 每步都清空整个置换表，上一手搜出来的结果全扔了。改成跨步保留。
   ttkeep: [['  ttClear(); killers.fill(0);', '  killers.fill(0);']],
   // 【已过期】VCT 置换表实验变体——TT 已经合入 index.html（见 PROGRESS「一之三」），
