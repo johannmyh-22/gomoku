@@ -1,0 +1,16 @@
+{
+  "seed": 20260812,
+  "openingFrom": 25,
+  "openingTo": 50,
+  "arms": [
+    "mateplykeep"
+  ],
+  "runControl": false,
+  "results": {
+    "mateplykeep vs 出厂orig": {
+      "a": 23,
+      "b": 27,
+      "d": 0
+    }
+  }
+}
