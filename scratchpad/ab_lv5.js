@@ -91,6 +91,35 @@ console.log(`变体：${ARMS.join(', ')}\n`);
 const results = {};
 let done = 0;
 const startMs = Date.now();
+
+// ---------- 断点续跑 ----------
+// 后台长任务会被清理杀掉（第一块 62 局跑完，第二块 37/50 时被杀）。有了每局的 job.id
+// （在参数固定时是确定的）就能只补跑缺的那些，把「丢两小时」变成「丢几分钟」。
+// 校验 seed/openingFrom/openingTo 一致才认，否则拿别的块的结果续跑会静默算错。
+const doneIds = new Set();
+if (OUTFILE && fs.existsSync(OUTFILE)) {
+  let bad = 0;
+  for (const line of fs.readFileSync(OUTFILE, 'utf8').split('\n')) {
+    if (!line.trim()) continue;
+    let o; try { o = JSON.parse(line); } catch (e) { continue; }
+    if (o.id === undefined) { bad++; continue; }          // 旧格式没记 id，无法续跑
+    if (o.seed !== SEED0 || o.from !== OP_FROM ||
+        o.to !== (OP_TO === null ? AB_OPENINGS : OP_TO)) { bad++; continue; }
+    if (doneIds.has(o.id)) continue;
+    doneIds.add(o.id);
+    const r = results[o.match] || (results[o.match] = { a: 0, b: 0, d: 0 });
+    if (o.aWon === null) r.d++; else if (o.aWon) r.a++; else r.b++;
+  }
+  if (bad) {
+    console.log(`⚠ ${OUTFILE} 里有 ${bad} 行无法用于续跑（旧格式或参数不符），已忽略。`);
+    console.log('  若这是上一次运行留下的旧格式文件，请先删掉它再跑，避免结果混入。');
+  }
+  if (doneIds.size) {
+    done = doneIds.size;
+    console.log(`断点续跑：已完成 ${done} 局，本次只补跑缺的 ${jobs.length - done} 局\n`);
+  }
+}
+const pending = jobs.filter(j => !doneIds.has(j.id));
 const workers = [];
 let nextIdx = 0;
 function sendExit(w) {
@@ -101,8 +130,8 @@ function sendExit(w) {
 function assignNext(w) {
   // 已经打发走的子进程不能再发消息：重复 send 会触发 'error' 事件把主进程带崩
   // （结果已打印完才崩，不影响数据，但看起来像跑挂了）
-  if (nextIdx >= jobs.length) { sendExit(w); return; }
-  w.send(jobs[nextIdx++]);
+  if (nextIdx >= pending.length) { sendExit(w); return; }
+  w.send(pending[nextIdx++]);
 }
 
 for (let i = 0; i < WORKERS; i++) {
@@ -122,16 +151,18 @@ for (let i = 0; i < WORKERS; i++) {
     if (OUTFILE) {
       try {
         fs.appendFileSync(OUTFILE, JSON.stringify({
-          match: msg.matchName, aWon: msg.aWon, len: msg.len, reason: msg.reason,
+          id: msg.id, match: msg.matchName, aWon: msg.aWon, len: msg.len, reason: msg.reason,
+          seed: SEED0, from: OP_FROM, to: OP_TO === null ? AB_OPENINGS : OP_TO,
           a: r.a, b: r.b, d: r.d, elapsed: Number(el),
         }) + '\n');
       } catch (e) { /* 落盘失败不该把实验带崩 */ }
     }
-    if (done === jobs.length) finish(); else assignNext(w);
+    if (done >= jobs.length) finish(); else assignNext(w);
   });
   workers.push(w);
 }
-workers.forEach(assignNext);
+if (!pending.length) { console.log('本块已全部完成，直接汇总。'); finish(); }
+else workers.forEach(assignNext);
 
 function finish() {
   console.log('\n=== 结果（左边是变体，右边是出厂 orig；左 > 右 才算有提升） ===');
