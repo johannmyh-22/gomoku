@@ -1,0 +1,26 @@
+LV5 出厂配置：共 212 局，4 个并行进程
+对照 12 局 + 1 个变体 x 200 局
+变体：mateplykeep
+
+[1/212] 对照 orig vs orig2（必须 6:6）  (25手 five)  232s
+[2/212] 对照 orig vs orig2（必须 6:6）  (25手 five)  234s
+[3/212] 对照 orig vs orig2（必须 6:6）  (21手 five)  290s
+[4/212] 对照 orig vs orig2（必须 6:6）  (21手 five)  290s
+[5/212] 对照 orig vs orig2（必须 6:6）  (43手 five)  603s
+[6/212] 对照 orig vs orig2（必须 6:6）  (43手 five)  606s
+[7/212] 对照 orig vs orig2（必须 6:6）  (13手 five)  670s
+[8/212] 对照 orig vs orig2（必须 6:6）  (13手 five)  672s
+[9/212] 对照 orig vs orig2（必须 6:6）  (38手 five)  712s
+[10/212] 对照 orig vs orig2（必须 6:6）  (38手 five)  713s
+[11/212] mateplykeep vs 出厂orig  (21手 five)  894s
+[12/212] mateplykeep vs 出厂orig  (23手 five)  906s
+[13/212] 对照 orig vs orig2（必须 6:6）  (33手 five)  931s
+[14/212] 对照 orig vs orig2（必须 6:6）  (33手 five)  936s
+[15/212] mateplykeep vs 出厂orig  (37手 five)  1146s
+[16/212] mateplykeep vs 出厂orig  (35手 five)  1171s
+[17/212] mateplykeep vs 出厂orig  (33手 five)  1304s
+[18/212] mateplykeep vs 出厂orig  (31手 five)  1376s
+[19/212] mateplykeep vs 出厂orig  (37手 five)  1412s
+[20/212] mateplykeep vs 出厂orig  (33手 five)  1495s
+[21/212] mateplykeep vs 出厂orig  (29手 five)  1697s
+[22/212] mateplykeep vs 出厂orig  (31手 five)  1723s
