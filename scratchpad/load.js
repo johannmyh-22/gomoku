@@ -188,7 +188,7 @@ const FILTERS = {
   noTT: ORIG_FILTER,    // 反向 patch：合入后的引擎去掉 VCT TT（见 EXTRA）
   rootsort: ORIG_FILTER, deeper: ORIG_FILTER, partial: ORIG_FILTER,
   deeppartial: ORIG_FILTER, lv5all: ORIG_FILTER,
-  mateply: ORIG_FILTER,  // 杀棋分 ply 校正（见 EXTRA）
+  mateply: ORIG_FILTER, mateplykeep: ORIG_FILTER,  // 杀棋分 ply 校正 / 再叠 TT 跨步保留（见 EXTRA）
   off: `  if(false){}`,
   fix: `  if(cfg.rootFilter && cnt>1){
     var cleanChecked=0, lim=cnt<14?cnt:14;
@@ -380,6 +380,15 @@ const MATEPLY = [
 const EXTRA = {
   // 杀棋分 ply 校正（见上面 MATEPLY 注释）
   mateply: MATEPLY,
+  // 杀棋分 ply 校正 + 置换表跨步保留。
+  // 这才是这条线真正的实验：单独修 ply 校正时 bug 只在「同一手棋内、同一局面出现在
+  // 不同 ply」时触发，实测 267/330万次命中 = 0.008%，小到不可能在 48 局里显形。
+  // 但一旦 TT 跨步保留，上一手存的条目在这一手会**系统性地**差 2 个 ply，bug 从
+  // 「偶发」变成「每条跨步复用的杀棋分都错」——PROGRESS「一之二」猜测 ttkeep 当年
+  // 打出 22:26 正是栽在这里，这个变体就是去验那条猜测。
+  // 注意只保留主搜索 TT，VCT TT 仍每步清空（`vctTtClear()`）：当年测 ttkeep 时
+  // VCT TT 还没合入，保持口径一致才可比，也避免一次动两个变量。
+  mateplykeep: [...MATEPLY, ['  ttClear(); killers.fill(0);', '  vctTtClear(); killers.fill(0);']],
   // think() 每步都清空整个置换表，上一手搜出来的结果全扔了。改成跨步保留。
   ttkeep: [['  ttClear(); killers.fill(0);', '  killers.fill(0);']],
   // 【已过期】VCT 置换表实验变体——TT 已经合入 index.html（见 PROGRESS「一之三」），
