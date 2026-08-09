@@ -14,3 +14,13 @@
 {"match":"对照 orig vs orig2（必须 6:6）","aWon":false,"len":33,"reason":"five","a":6,"b":6,"d":0,"elapsed":950}
 {"match":"mateplykeep vs 出厂orig","aWon":true,"len":37,"reason":"five","a":2,"b":1,"d":0,"elapsed":1110}
 {"match":"mateplykeep vs 出厂orig","aWon":false,"len":35,"reason":"five","a":2,"b":2,"d":0,"elapsed":1127}
+{"match":"mateplykeep vs 出厂orig","aWon":true,"len":33,"reason":"five","a":3,"b":2,"d":0,"elapsed":1275}
+{"match":"mateplykeep vs 出厂orig","aWon":true,"len":31,"reason":"five","a":4,"b":2,"d":0,"elapsed":1325}
+{"match":"mateplykeep vs 出厂orig","aWon":false,"len":37,"reason":"five","a":4,"b":3,"d":0,"elapsed":1415}
+{"match":"mateplykeep vs 出厂orig","aWon":false,"len":33,"reason":"five","a":4,"b":4,"d":0,"elapsed":1437}
+{"match":"mateplykeep vs 出厂orig","aWon":false,"len":29,"reason":"five","a":4,"b":5,"d":0,"elapsed":1636}
+{"match":"mateplykeep vs 出厂orig","aWon":true,"len":31,"reason":"five","a":5,"b":5,"d":0,"elapsed":1724}
+{"match":"mateplykeep vs 出厂orig","aWon":false,"len":63,"reason":"five","a":5,"b":6,"d":0,"elapsed":1978}
+{"match":"mateplykeep vs 出厂orig","aWon":false,"len":76,"reason":"five","a":5,"b":7,"d":0,"elapsed":2134}
+{"match":"mateplykeep vs 出厂orig","aWon":false,"len":30,"reason":"five","a":5,"b":8,"d":0,"elapsed":2232}
+{"match":"mateplykeep vs 出厂orig","aWon":true,"len":30,"reason":"five","a":6,"b":8,"d":0,"elapsed":2401}
