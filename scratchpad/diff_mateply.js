@@ -10,13 +10,24 @@ const LV3 = { timeMs:1500, maxDepth:8, vcfDepth:10, vcfBudget:120000, vctDepth:5
 const LV4 = { timeMs:4000, maxDepth:12, vcfDepth:14, vcfBudget:400000, vctDepth:7,
   vctBudget:400000, vctDefDepth:5, vctDefBudget:60000, rand:0, rootFilter:true, forbid:false };
 
+// 逐项照抄 index.html 的 LEVELS[5]——A/B 的实际目标档位，浅档结果不能外推：
+// LV5 搜得更深、杀棋分更多、转置更频繁，空操作与否必须在这一档单独验。
+const LV5 = { timeMs:9000, maxDepth:18, vcfDepth:20, vcfBudget:1200000, vctDepth:9,
+  vctBudget:1500000, vctDefDepth:7, vctDefBudget:150000, rand:0, rootFilter:true, forbid:false };
+
 const arms = ['orig', 'mateply', 'mateplykeep'];
 const mods = {};
 for (const a of arms) { build(a); mods[a] = require('./eng_' + a + '.js'); }
 
+const ALL = [['LV3', LV3], ['LV4', LV4], ['LV5', LV5]];
+// 用法：node diff_mateply.js            -> LV3+LV4（快）
+//       node diff_mateply.js 5          -> 只跑 LV5（慢，每个开局 3 局 x 9 秒预算）
+//       node diff_mateply.js 3 4 5      -> 全跑
+const want = process.argv.slice(2).filter(a => /^[345]$/.test(a));
+const levels = want.length ? ALL.filter(([n]) => want.includes(n.slice(2))) : ALL.slice(0, 2);
 const openings = [[[7,7],[7,8]], [[7,7],[8,8],[6,8]], [[7,7],[6,6],[8,6]]];
 
-for (const [lname, cfg] of [['LV3', LV3], ['LV4', LV4]]) {
+for (const [lname, cfg] of levels) {
   for (const op of openings) {
     const seq = {};
     for (const a of arms) {
