@@ -16,6 +16,7 @@
 //   node ab_lv5.js --openings=6             # 每臂 12 局，快速摸底
 //   node ab_lv5.js --arms=rootsort          # 只测指定变体
 const os = require('os');
+const fs = require('fs');
 const path = require('path');
 const { fork } = require('child_process');
 const { build } = require('./load.js');
@@ -28,6 +29,17 @@ const WORKERS = Number(argVal('workers', os.cpus().length));
 const CTRL_OPENINGS = Number(argVal('controlOpenings', 6));
 const AB_OPENINGS = Number(argVal('openings', 12));   // -> 2 * openings 局/臂
 const ARMS = argVal('arms', 'rootsort,deeppartial,lv5all').split(',').filter(Boolean);
+// 分块跑：长任务会被后台清理杀掉（实测撑约 4.6 小时就没了），整块 200 局跑不完。
+// 把预登记的开局集按**事先定死的下标**切片，每块单独落盘，最坏只丢一块。
+// 块边界与数据无关，所以合并各块统计不构成优化停止点——跟「看到偏正就追加」有本质区别。
+const OP_FROM = Number(argVal('openingFrom', 0));
+const OP_TO = Number(argVal('openingTo', 0)) || null;   // 不给则用满 AB_OPENINGS
+// 对照赛只在第一块跑一次；但**对照开局必须照常生成**，否则随机流错位、
+// 后面几块的 A/B 开局就不再是预登记的那一批了。
+const RUN_CONTROL = argVal('runControl', '1') !== '0';
+// 每局结果实时落盘。上一轮 4.6 小时的数据全废，就是因为胜负只存在主控内存里，
+// 日志只记了手数和耗时，进程被杀就什么都不剩。
+const OUTFILE = argVal('out', '');
 
 // 逐项照抄 index.html 的 LEVELS[5]
 const LV5 = { timeMs: 9000, maxDepth: 18, vcfDepth: 20, vcfBudget: 1200000, vctDepth: 9,
@@ -38,7 +50,8 @@ for (const a of ARMS) build(a);
 
 // 开局种子。重跑同一个假设时**必须换种子**，否则用的是已经看过结果的那批开局，
 // 新数据与旧数据不独立，合并统计会假性收窄置信区间。
-let seed = Number(argVal('seed', 20260811));
+const SEED0 = Number(argVal('seed', 20260811));   // 原始种子，用于实验记录
+let seed = SEED0;                                 // rnd() 会把它改写，别拿它当记录
 const rnd = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
 function genOpenings(n) {
   const out = [];
@@ -62,13 +75,17 @@ function buildJobs(matchName, modA, modB, openings) {
 }
 
 // 所有臂用同一批开局，可比性更好
-const ctrlOps = genOpenings(CTRL_OPENINGS), abOps = genOpenings(AB_OPENINGS);
-const jobs = [ ...buildJobs('对照 orig vs orig2（必须 6:6）', 'orig', 'orig2', ctrlOps) ];
+const ctrlOps = genOpenings(CTRL_OPENINGS), abOpsAll = genOpenings(AB_OPENINGS);
+// 切片必须发生在**生成之后**：随机流已经把 100 个开局定死了，切片只是选其中一段。
+const abOps = abOpsAll.slice(OP_FROM, OP_TO === null ? AB_OPENINGS : OP_TO);
+const jobs = RUN_CONTROL
+  ? [ ...buildJobs('对照 orig vs orig2（必须 6:6）', 'orig', 'orig2', ctrlOps) ] : [];
 for (const a of ARMS) jobs.push(...buildJobs(`${a} vs 出厂orig`, a, 'orig', abOps));
 jobs.forEach((j, i) => { j.id = i; });
 
 console.log(`LV5 出厂配置：共 ${jobs.length} 局，${WORKERS} 个并行进程`);
-console.log(`对照 ${ctrlOps.length * 2} 局 + ${ARMS.length} 个变体 x ${abOps.length * 2} 局`);
+console.log(`对照 ${RUN_CONTROL ? ctrlOps.length * 2 : 0} 局 + ${ARMS.length} 个变体 x ${abOps.length * 2} 局` +
+  `（开局下标 [${OP_FROM},${OP_TO === null ? AB_OPENINGS : OP_TO}) / 共 ${AB_OPENINGS}，种子 ${SEED0}）`);
 console.log(`变体：${ARMS.join(', ')}\n`);
 
 const results = {};
@@ -97,7 +114,19 @@ for (let i = 0; i < WORKERS; i++) {
     const r = results[msg.matchName] || (results[msg.matchName] = { a: 0, b: 0, d: 0 });
     if (msg.aWon === null) r.d++; else if (msg.aWon) r.a++; else r.b++;
     const el = ((Date.now() - startMs) / 1000).toFixed(0);
-    console.log(`[${done}/${jobs.length}] ${msg.matchName}  (${msg.len}手 ${msg.reason})  ${el}s`);
+    // 胜负必须进日志。上一轮就是因为只记手数，进程被杀后 4.6 小时的数据全部无法判定。
+    const who = msg.aWon === null ? '和' : (msg.aWon ? '胜=左' : '胜=右');
+    console.log(`[${done}/${jobs.length}] ${msg.matchName}  ${who}  ` +
+      `累计 ${r.a}:${r.b}和${r.d}  (${msg.len}手 ${msg.reason})  ${el}s`);
+    // 再落一份机器可读的，避免解析中文日志
+    if (OUTFILE) {
+      try {
+        fs.appendFileSync(OUTFILE, JSON.stringify({
+          match: msg.matchName, aWon: msg.aWon, len: msg.len, reason: msg.reason,
+          a: r.a, b: r.b, d: r.d, elapsed: Number(el),
+        }) + '\n');
+      } catch (e) { /* 落盘失败不该把实验带崩 */ }
+    }
     if (done === jobs.length) finish(); else assignNext(w);
   });
   workers.push(w);
@@ -108,6 +137,13 @@ function finish() {
   console.log('\n=== 结果（左边是变体，右边是出厂 orig；左 > 右 才算有提升） ===');
   for (const [name, r] of Object.entries(results))
     console.log(`${name.padEnd(34)}  ${r.a} : ${r.b}   和 ${r.d}   (共 ${r.a + r.b + r.d} 局)`);
+  if (OUTFILE) {
+    try {
+      fs.writeFileSync(OUTFILE.replace(/\.jsonl?$/, '') + '.summary.json',
+        JSON.stringify({ seed: SEED0, openingFrom: OP_FROM, openingTo: OP_TO, arms: ARMS,
+          runControl: RUN_CONTROL, results }, null, 2));
+    } catch (e) { /* 同上 */ }
+  }
   workers.forEach(sendExit);
   setTimeout(() => process.exit(0), 200);
 }
