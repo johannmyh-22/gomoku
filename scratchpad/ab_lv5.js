@@ -36,7 +36,9 @@ const LV5 = { timeMs: 9000, maxDepth: 18, vcfDepth: 20, vcfBudget: 1200000, vctD
 build('orig'); build('orig2');
 for (const a of ARMS) build(a);
 
-let seed = 20260811;
+// 开局种子。重跑同一个假设时**必须换种子**，否则用的是已经看过结果的那批开局，
+// 新数据与旧数据不独立，合并统计会假性收窄置信区间。
+let seed = Number(argVal('seed', 20260811));
 const rnd = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
 function genOpenings(n) {
   const out = [];
