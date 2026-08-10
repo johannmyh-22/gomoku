@@ -42,3 +42,7 @@
 {"id":41,"match":"0.0625倍预算 vs 出厂","aWon":false,"len":29,"reason":"five","seed":20260815,"level":5,"mul":0.0625,"from":0,"to":25,"a":10,"b":19,"d":1,"elapsed":1720}
 {"id":42,"match":"0.0625倍预算 vs 出厂","aWon":true,"len":23,"reason":"five","seed":20260815,"level":5,"mul":0.0625,"from":0,"to":25,"a":11,"b":19,"d":1,"elapsed":1721}
 {"id":43,"match":"0.0625倍预算 vs 出厂","aWon":false,"len":23,"reason":"five","seed":20260815,"level":5,"mul":0.0625,"from":0,"to":25,"a":11,"b":20,"d":1,"elapsed":1748}
+{"id":45,"match":"0.0625倍预算 vs 出厂","aWon":false,"len":21,"reason":"five","seed":20260815,"level":5,"mul":0.0625,"from":0,"to":25,"a":11,"b":21,"d":1,"elapsed":1766}
+{"id":44,"match":"0.0625倍预算 vs 出厂","aWon":false,"len":24,"reason":"five","seed":20260815,"level":5,"mul":0.0625,"from":0,"to":25,"a":11,"b":22,"d":1,"elapsed":1771}
+{"id":47,"match":"0.0625倍预算 vs 出厂","aWon":false,"len":31,"reason":"five","seed":20260815,"level":5,"mul":0.0625,"from":0,"to":25,"a":11,"b":23,"d":1,"elapsed":1857}
+{"id":48,"match":"0.0625倍预算 vs 出厂","aWon":false,"len":38,"reason":"five","seed":20260815,"level":5,"mul":0.0625,"from":0,"to":25,"a":11,"b":24,"d":1,"elapsed":1871}
