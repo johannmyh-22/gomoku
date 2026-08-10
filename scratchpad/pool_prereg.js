@@ -59,6 +59,10 @@ for (const [name, r] of Object.entries(pooled)) {
   console.log(`  胜率      : ${(rate*100).toFixed(1)}%  ≈ ${elo(rate).toFixed(0)} Elo`);
   console.log(`  95% CI    : ${(lo*100).toFixed(1)}% ~ ${(hi*100).toFixed(1)}%  ≈ ${elo(lo).toFixed(0)} ~ ${elo(hi).toFixed(0)} Elo`);
   console.log(`  预登记判定: ${verdict}`);
-  if (n < 200) console.log(`  ⚠ 样本量 ${n} < 预登记的 200 局，功效不足；` +
+  // 样本量要按**总局数**算，不是分胜负局数——和棋也是跑完的局。
+  // （初版拿 n=a+b 跟 200 比，3 局和棋就误报「样本不足」。）
+  const total = r.a + r.b + r.d;
+  if (total < 200) console.log(`  ⚠ 样本量 ${total} < 预登记的 200 局，功效不足；` +
     `按预登记，中断点不得当作有利的停止点来解释`);
+  else console.log(`  样本量    : ${total} 局，达到预登记的 200 局（其中和棋 ${r.d}）`);
 }

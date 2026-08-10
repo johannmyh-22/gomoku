@@ -701,6 +701,9 @@ function evaluate(side){
 
 /* ---------- 置换表 ---------- */
 var TT_BITS=20, TT_SIZE=1<<TT_BITS, TT_MASK=TT_SIZE-1;
+/* 杀棋分的分界线。杀棋分是 WIN-ply（ply<=MAXPLY=48），所以真杀棋分落在 [WIN-48, WIN]；
+   NEARWIN 那档启发分只有 80 万量级，离得很远，这条线不会误伤。 */
+var MATE_BAND=WIN-1000;
 var ttKey=new Int32Array(TT_SIZE), ttVal=new Int32Array(TT_SIZE);
 var ttDepth=new Int8Array(TT_SIZE), ttFlag=new Int8Array(TT_SIZE);
 var ttSide=new Int8Array(TT_SIZE), ttMove=new Int32Array(TT_SIZE);
@@ -722,6 +725,8 @@ function pvs(side, depth, alpha, beta, ply){
     ttMv=ttMove[ti];
     if(ttDepth[ti]>=depth){
       var tv=ttVal[ti], tf=ttFlag[ti];
+      /* 存的是「距这个节点还有几步将杀」，取出来要换算回「从根数第几层将杀」 */
+      if(tv>=MATE_BAND) tv-=ply; else if(tv<=-MATE_BAND) tv+=ply;
       if(tf===0) return tv;
       else if(tf===1){ if(tv>alpha) alpha=tv; }
       else { if(tv<beta) beta=tv; }
@@ -775,7 +780,15 @@ function pvs(side, depth, alpha, beta, ply){
     }
   }
   ti=ttIndex(side);
-  ttKey[ti]=hash2; ttSide[ti]=side; ttVal[ti]=best; ttDepth[ti]=depth>127?127:depth;
+  /* 杀棋分要按 ply 校正后再存：best 里的 WIN-ply 是「从根数第几层将杀」，
+     换根或同一局面出现在别的 ply 时就失真了。加上 ply 转成节点相对的「还有几步将杀」，
+     读表时再减回去。实测这个 bug 真的会发生（LV5 两局里 267 次取回错误的杀棋距离，
+     最差错 10 步），但错的杀棋分仍然压过一切非杀棋分，选出来还是同一步——
+     LV3/LV4 六个开局逐字节验证过是空操作。**这是正确性修复，不是棋力提升**：
+     配套的「ply 校正 + TT 跨步保留」预登记跑了 200 局，98:99，−2 Elo。 */
+  var sv=best;
+  if(sv>=MATE_BAND) sv+=ply; else if(sv<=-MATE_BAND) sv-=ply;
+  ttKey[ti]=hash2; ttSide[ti]=side; ttVal[ti]=sv; ttDepth[ti]=depth>127?127:depth;
   ttFlag[ti]= best<=alphaOrig?2:(best>=beta?1:0); ttMove[ti]=bestMv;
   return best;
 }

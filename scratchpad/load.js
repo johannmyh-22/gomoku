@@ -188,7 +188,8 @@ const FILTERS = {
   noTT: ORIG_FILTER,    // 反向 patch：合入后的引擎去掉 VCT TT（见 EXTRA）
   rootsort: ORIG_FILTER, deeper: ORIG_FILTER, partial: ORIG_FILTER,
   deeppartial: ORIG_FILTER, lv5all: ORIG_FILTER,
-  mateply: ORIG_FILTER, mateplykeep: ORIG_FILTER,  // 杀棋分 ply 校正 / 再叠 TT 跨步保留（见 EXTRA）
+  mateply: ORIG_FILTER, mateplykeep: ORIG_FILTER,  // 杀棋分 ply 校正（已合入，变体过期）/ 再叠 TT 跨步保留
+  noMatePly: ORIG_FILTER,   // 反向：退回没有 ply 校正（见 EXTRA）
   off: `  if(false){}`,
   fix: `  if(cfg.rootFilter && cnt>1){
     var cleanChecked=0, lim=cnt<14?cnt:14;
@@ -365,6 +366,9 @@ const PARTIAL = [
 //    标准修法：写表时 +ply 转成节点相对，读表时 -ply 转回根相对。
 //    MATE_BAND=WIN-1000 能干净地把真杀棋分（WIN-48 ~ WIN，MAXPLY=48）
 //    和 NEARWIN 启发分（80 万量级）分开，不会误伤后者。
+// 【已过期】ply 校正已于 2026-08-10 合入 index.html，这组改写点再也匹配不上，
+//    build('mateply') 会直接报错——跟当年 vcttt 合入后的下场一样，是设计内行为。
+//    要重测「有没有 ply 校正」，用下面的反向变体 noMatePly。
 const MATEPLY = [
   ['var TT_BITS=20, TT_SIZE=1<<TT_BITS, TT_MASK=TT_SIZE-1;',
    'var TT_BITS=20, TT_SIZE=1<<TT_BITS, TT_MASK=TT_SIZE-1;\nvar MATE_BAND=WIN-1000;'],
@@ -377,9 +381,22 @@ const MATEPLY = [
    '  ttKey[ti]=hash2; ttSide[ti]=side; ttVal[ti]=_sv; ttDepth[ti]=depth>127?127:depth;'],
 ];
 
+// 反向 patch：把合入后的引擎退回**没有 ply 校正**的状态。
+// 用途：继续测「有校正 vs 没校正」，或给 TT 跨步保留那条线做对照。
+// 注意合入版用的是 `var sv=`（无下划线），跟上面 MATEPLY 生成的 `_sv` 不是一回事。
+const NO_MATEPLY = [
+  ['      if(tv>=MATE_BAND) tv-=ply; else if(tv<=-MATE_BAND) tv+=ply;\n', ''],
+  ['  var sv=best;\n' +
+   '  if(sv>=MATE_BAND) sv+=ply; else if(sv<=-MATE_BAND) sv-=ply;\n' +
+   '  ttKey[ti]=hash2; ttSide[ti]=side; ttVal[ti]=sv; ttDepth[ti]=depth>127?127:depth;',
+   '  ttKey[ti]=hash2; ttSide[ti]=side; ttVal[ti]=best; ttDepth[ti]=depth>127?127:depth;'],
+];
+
 const EXTRA = {
-  // 杀棋分 ply 校正（见上面 MATEPLY 注释）
+  // 【已过期】ply 校正已合入 index.html，改写点不再匹配，build 会报错。留作历史记录。
   mateply: MATEPLY,
+  // 反向变体：把合入后的引擎退回没有 ply 校正的状态（见 NO_MATEPLY 注释）
+  noMatePly: NO_MATEPLY,
   // 杀棋分 ply 校正 + 置换表跨步保留。
   // 这才是这条线真正的实验：单独修 ply 校正时 bug 只在「同一手棋内、同一局面出现在
   // 不同 ply」时触发，实测 267/330万次命中 = 0.008%，小到不可能在 48 局里显形。
@@ -388,7 +405,9 @@ const EXTRA = {
   // 打出 22:26 正是栽在这里，这个变体就是去验那条猜测。
   // 注意只保留主搜索 TT，VCT TT 仍每步清空（`vctTtClear()`）：当年测 ttkeep 时
   // VCT TT 还没合入，保持口径一致才可比，也避免一次动两个变量。
-  mateplykeep: [...MATEPLY, ['  ttClear(); killers.fill(0);', '  vctTtClear(); killers.fill(0);']],
+  // ply 校正已合入引擎，所以这个变体现在只需叠「TT 跨步保留」这一件事。
+  // 预登记 200 局实测 98:99（−2 Elo），中性——保留变体供将来复现，不再是候选改动。
+  mateplykeep: [['  ttClear(); killers.fill(0);', '  vctTtClear(); killers.fill(0);']],
   // think() 每步都清空整个置换表，上一手搜出来的结果全扔了。改成跨步保留。
   ttkeep: [['  ttClear(); killers.fill(0);', '  killers.fill(0);']],
   // 【已过期】VCT 置换表实验变体——TT 已经合入 index.html（见 PROGRESS「一之三」），
