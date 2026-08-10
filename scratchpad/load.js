@@ -192,6 +192,7 @@ const FILTERS = {
   noMatePly: ORIG_FILTER,   // 反向：退回没有 ply 校正（见 EXTRA）
   ev3hi: ORIG_FILTER, ev3lo: ORIG_FILTER,   // 评估函数敏感度诊断：活三权重 ±30%（见 EXTRA）
   evflat: ORIG_FILTER,                      // 评估轴的阳性对照：压平整张棋型权重表（见 EXTRA）
+  evmix25: ORIG_FILTER, evmix50: ORIG_FILTER, evmix75: ORIG_FILTER,  // 平台测绘（见 EXTRA）
   off: `  if(false){}`,
   fix: `  if(cfg.rootFilter && cnt>1){
     var cleanChecked=0, lim=cnt<14?cnt:14;
@@ -435,6 +436,30 @@ const EV3LO = [[PSCORE_ORIG, 'var PSCORE=new Int32Array([0,2,14,20,154,240,3000,
      - **连这个都测不出** → 解释 (2) 坐实，调权重整条路封死，转开局库 / 新特征 */
 const EVFLAT = [[PSCORE_ORIG, 'var PSCORE=new Int32Array([0,10,10,10,10,10,10,10]);']];
 
+/* ---------- G. 平台测绘：出厂 ↔ 压平 之间的插值 ----------
+   到此为止评估轴上只有两个点：×1 附近 ±30% 是平的（94:106），整表压平 = −168 Elo。
+   中间一大段空白。「平台假说」（出厂值已在平台上，微调无用）与「幅度假说」
+   （±30% 太小，更大范围仍有戏）都还站得住，本轮数据区分不了。
+
+   区分办法：在这两个已知点之间连一条线量过去。
+     w_i(t) = round(w_i(出厂) * (1−t) + 10 * t)
+   t=0 是出厂，t=1 就是已测的 evflat（−168 Elo）。
+
+   这条线的性质：**t<1 时棋型之间的大小顺序完全保留，变的只是比例（差距被压缩）**。
+   所以它量的正是「比例要多准才够用」——而不是「顺序对不对」。
+
+   判读：
+     - t=0.5 仍测不出差异 → 这张表容错极大，任何现实幅度的重新配比都换不来棋力，
+       平台假说坐实，调权重整条路封死
+     - 某个 t 开始掉 → 平台有边界，幅度假说有戏，再谈往哪调
+
+   跟「减预算比加预算便宜」同一条方法论：不猜哪个方向更好，只量离出厂值多远才开始有影响。 */
+const PSCORE_FACTORY = [0, 2, 14, 20, 220, 240, 3000, 20000];
+function pscoreMix(t) {
+  const w = PSCORE_FACTORY.map((v, i) => i === 0 ? 0 : Math.round(v * (1 - t) + 10 * t));
+  return 'var PSCORE=new Int32Array([' + w.join(',') + ']);';
+}
+
 const EXTRA = {
   // 【已过期】ply 校正已合入 index.html，改写点不再匹配，build 会报错。留作历史记录。
   mateply: MATEPLY,
@@ -443,6 +468,10 @@ const EXTRA = {
   ev3lo: [EV3LO[0]],
   // 评估轴的阳性对照（见上面 EVFLAT 注释）
   evflat: [EVFLAT[0]],
+  // 平台测绘：出厂 ↔ 压平 之间的插值（见上面 pscoreMix 注释）
+  evmix25: [[PSCORE_ORIG, pscoreMix(0.25)]],
+  evmix50: [[PSCORE_ORIG, pscoreMix(0.50)]],
+  evmix75: [[PSCORE_ORIG, pscoreMix(0.75)]],
   // 反向变体：把合入后的引擎退回没有 ply 校正的状态（见 NO_MATEPLY 注释）
   noMatePly: NO_MATEPLY,
   // 杀棋分 ply 校正 + 置换表跨步保留。

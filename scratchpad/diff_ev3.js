@@ -43,7 +43,10 @@ const firstDiff = (A, B) => {
 
 for (const [lname, cfg] of levels) {
   const times = [];
-  let allDiff = true;
+  // 按「配对」累计，而不是看单局。两个不同的引擎在某一个开局下走出同一局棋是正常的
+  // ——只说明那一局里权重差异从没改变过任何一次选择。**只有在所有开局下都逐字节相同，
+  // 才是空操作**（PROGRESS「一之四」的 partial 就是那种：处处相同）。
+  const sameCnt = {}, totalCnt = {};
   for (const op of openings) {
     const seq = {};
     for (const a of arms) {
@@ -60,16 +63,27 @@ for (const [lname, cfg] of levels) {
       for (let j = i + 1; j < arms.length; j++) pairs.push([arms[i], arms[j]]);
     console.log(`${lname} 开局 ${JSON.stringify(op)}`);
     for (const [x, y] of pairs) {
+      const k = x + ' vs ' + y;
       const d = firstDiff(seq[x], seq[y]);
-      if (d < 0 && x !== 'orig') allDiff = false;
-      console.log(`   ${(x + ' vs ' + y).padEnd(16)}: ` +
-        (d < 0 ? '★逐字节相同（空操作！）' : `不同，首次分歧在第 ${d} 手`));
+      totalCnt[k] = (totalCnt[k] || 0) + 1;
+      if (d < 0) sameCnt[k] = (sameCnt[k] || 0) + 1;
+      console.log(`   ${k.padEnd(20)}: ` +
+        (d < 0 ? '逐字节相同（本开局内未改变任何选择）' : `不同，首次分歧在第 ${d} 手`));
     }
   }
+  // 判定：只看「变体 vs 基准」这些配对——它们才是 A/B 里真正对打的组合。
+  // 变体之间的两两对比只作参考（除非该实验就是让两个变体直接对打）。
+  const base = arms[0];
+  const vsBase = Object.keys(totalCnt).filter(k => k.endsWith(' vs ' + base));
+  const noop = vsBase.filter(k => (sameCnt[k] || 0) === totalCnt[k]);
+  console.log(`\n${lname} 各配对「全开局都相同」的情况：` +
+    (Object.keys(totalCnt).filter(k => (sameCnt[k] || 0) === totalCnt[k]).join('; ') || '无'));
   const tot = times.reduce((s, t) => s + t.ms, 0);
   const avg = tot / times.length;
   const avgPly = times.reduce((s, t) => s + t.plies, 0) / times.length;
   console.log(`\n${lname} 成本：${times.length} 局共 ${(tot/1000).toFixed(1)}s，` +
     `平均 ${(avg/1000).toFixed(1)}s/局（平均 ${avgPly.toFixed(0)} 手）`);
-  console.log(`${lname} 判定：${allDiff ? '✅ 非空操作，可以进 A/B' : '❌ 存在空操作臂，不得进 A/B'}\n`);
+  console.log(`${lname} 判定（只看 vs ${base}）：` +
+    (noop.length ? `❌ ${noop.join('; ')} 在全部开局下都相同 —— 空操作，不得进 A/B`
+                 : '✅ 每个变体都改变了走法，可以进 A/B') + '\n');
 }
