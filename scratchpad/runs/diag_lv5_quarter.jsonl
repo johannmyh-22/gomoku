@@ -30,3 +30,4 @@
 {"id":31,"match":"0.25倍预算 vs 出厂","aWon":false,"len":25,"reason":"five","seed":20260814,"level":5,"mul":0.25,"from":0,"to":25,"a":10,"b":8,"d":0,"elapsed":1299}
 {"id":30,"match":"0.25倍预算 vs 出厂","aWon":true,"len":41,"reason":"five","seed":20260814,"level":5,"mul":0.25,"from":0,"to":25,"a":11,"b":8,"d":0,"elapsed":1358}
 {"id":32,"match":"0.25倍预算 vs 出厂","aWon":true,"len":29,"reason":"five","seed":20260814,"level":5,"mul":0.25,"from":0,"to":25,"a":12,"b":8,"d":0,"elapsed":1372}
+{"id":33,"match":"0.25倍预算 vs 出厂","aWon":false,"len":29,"reason":"five","seed":20260814,"level":5,"mul":0.25,"from":0,"to":25,"a":12,"b":9,"d":0,"elapsed":1412}
