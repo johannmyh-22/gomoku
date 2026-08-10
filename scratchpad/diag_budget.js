@@ -183,18 +183,34 @@ function finish() {
       console.log(`  胜率 ${(rate*100).toFixed(1)}%  ≈ ${elo(rate).toFixed(0)} Elo`);
       console.log(`  95% CI ${((rate-1.96*se)*100).toFixed(1)}% ~ ${((rate+1.96*se)*100).toFixed(1)}%` +
         `  ≈ ${elo(rate-1.96*se).toFixed(0)} ~ ${elo(rate+1.96*se).toFixed(0)} Elo`);
+      // 判读要分「加预算」和「减预算」两个方向——初版只按加预算写，
+      // 结果 --mul=0.0625 那组（健康地打出 z=-3.00）被误判成「不该发生」。
       console.log('\n  判读：');
-      if (z >= 2) {
-        console.log('   ✅ 测量台有分辨力 —— 阳性对照通过，之前五个 null 是可信的');
-        console.log('   → 搜索**未饱和**，深度仍是杠杆；搜索侧值得继续找方向');
-      } else if (z > -2) {
-        console.log('   ⚠ 预算翻倍都测不出差异。两种可能，必须分清：');
-        console.log('     (a) 搜索已饱和 —— 瓶颈在评估函数，该投那边');
-        console.log('     (b) 测量台没有分辨力 —— 那么之前五个「无收益」全部要打问号');
-        console.log('     区分办法：加大倍数（--mul=4 甚至 8）。若 4 倍、8 倍仍无差异，');
-        console.log('     几乎可以断定是 (b)，因为不可能有引擎对 8 倍算力完全无动于衷。');
+      if (MUL > 1) {
+        if (z >= 2) {
+          console.log('   ✅ 加预算确实更强 —— 测量台有分辨力，且搜索**未饱和**');
+          console.log('   → 深度仍是杠杆，搜索侧值得继续找方向');
+        } else if (z > -2) {
+          console.log('   ⚠ 加预算测不出差异。两种可能，必须分清：');
+          console.log('     (a) 搜索已在这个预算上饱和 —— 瓶颈在评估函数');
+          console.log('     (b) 测量台没有分辨力 —— 那么历史上的「无收益」全要打问号');
+          console.log('     区分办法：跑**减预算**方向（--mul=0.25、0.0625）。减预算比加预算便宜，');
+          console.log('     且若砍到 1/16 仍无差异，几乎可断定是 (b)。');
+        } else {
+          console.log('   ❓ 加预算反而更差。样本不足或搜索不稳定，需更多局数才能下结论');
+        }
       } else {
-        console.log('   ❌ 预算翻倍反而更差 —— 这不该发生，先查测量台是否有 bug');
+        if (z <= -2) {
+          console.log('   ✅ 减预算确实更弱 —— **测量台有分辨力**，历史上的「无收益」可信');
+          console.log(`   → 饱和点在 ${BIG.timeMs}ms 与出厂 ${BASE.timeMs}ms 之间；`);
+          console.log('     再往上加时间换不来棋力，「搜得更深/榨干预算」类方向可以划掉');
+        } else if (z < 2) {
+          console.log('   ⚠ 连减预算都测不出差异 —— 继续往下砍（--mul 更小）。');
+          console.log('     若砍到只剩几十毫秒仍无差异，那是**测量台失灵**，');
+          console.log('     历史上所有「实测中性」的结论都要重新审视。');
+        } else {
+          console.log('   ❓ 减预算反而更强 —— 不该发生，先查测量台是否有 bug');
+        }
       }
     }
   }
