@@ -1,0 +1,35 @@
+{
+  "seed": 20260818,
+  "openingFrom": 0,
+  "openingTo": 25,
+  "arms": [
+    "evmix25",
+    "evmix50",
+    "evmix75"
+  ],
+  "level": "3",
+  "baseline": "orig",
+  "runControl": true,
+  "results": {
+    "对照 orig vs orig2（必须 6:6）": {
+      "a": 6,
+      "b": 6,
+      "d": 0
+    },
+    "evmix25 vs 出厂orig": {
+      "a": 25,
+      "b": 25,
+      "d": 0
+    },
+    "evmix50 vs 出厂orig": {
+      "a": 27,
+      "b": 23,
+      "d": 0
+    },
+    "evmix75 vs 出厂orig": {
+      "a": 22,
+      "b": 28,
+      "d": 0
+    }
+  }
+}

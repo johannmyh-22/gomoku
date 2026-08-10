@@ -7,9 +7,16 @@
 //   z <= -2.0  -> 反向证实，记为有害
 //
 // 用法：node pool_prereg.js runs/prereg_c1.summary.json runs/prereg_c2.summary.json ...
+//       node pool_prereg.js --n=100 runs/evmix_lv3_c1.summary.json ...
+//
+// --n= 是**该实验预登记的每臂局数**，只用于「样本量是否跑满」这一条提示。
+// 默认 200 是 PREREG_mateplykeep 的数字；后来的实验各有各的 N（如平台测绘是每臂 100），
+// 不给这个参数会误报「功效不足」。判定阈值不受它影响。
 const fs = require('fs');
 
-const files = process.argv.slice(2);
+const nArg = process.argv.find(a => a.startsWith('--n='));
+const PREREG_N = nArg ? Number(nArg.split('=')[1]) : 200;
+const files = process.argv.slice(2).filter(a => !a.startsWith('--'));
 if (!files.length) { console.error('用法: node pool_prereg.js <各块的 .summary.json>'); process.exit(1); }
 
 const pooled = {};
@@ -62,7 +69,7 @@ for (const [name, r] of Object.entries(pooled)) {
   // 样本量要按**总局数**算，不是分胜负局数——和棋也是跑完的局。
   // （初版拿 n=a+b 跟 200 比，3 局和棋就误报「样本不足」。）
   const total = r.a + r.b + r.d;
-  if (total < 200) console.log(`  ⚠ 样本量 ${total} < 预登记的 200 局，功效不足；` +
+  if (total < PREREG_N) console.log(`  ⚠ 样本量 ${total} < 预登记的 ${PREREG_N} 局，功效不足；` +
     `按预登记，中断点不得当作有利的停止点来解释`);
-  else console.log(`  样本量    : ${total} 局，达到预登记的 200 局（其中和棋 ${r.d}）`);
+  else console.log(`  样本量    : ${total} 局，达到预登记的 ${PREREG_N} 局（其中和棋 ${r.d}）`);
 }
