@@ -22,7 +22,10 @@ const LV3 = { timeMs:1500, maxDepth:8, vcfDepth:10, vcfBudget:120000, vctDepth:5
 const LV5 = { timeMs:9000, maxDepth:18, vcfDepth:20, vcfBudget:1200000, vctDepth:9,
   vctBudget:1500000, vctDefDepth:7, vctDefBudget:150000, rand:0, rootFilter:true, forbid:false };
 
-const arms = ['orig', 'ev3hi', 'ev3lo'];
+// --arms= 可换成别的变体（如 evflat）；第一个必须是基准，默认 orig
+const armArg = process.argv.find(a => a.startsWith('--arms='));
+const arms = armArg ? ['orig', ...armArg.split('=')[1].split(',').filter(Boolean)]
+                    : ['orig', 'ev3hi', 'ev3lo'];
 const mods = {};
 for (const a of arms) { build(a); mods[a] = require('./eng_' + a + '.js'); }
 
@@ -49,8 +52,14 @@ for (const [lname, cfg] of levels) {
       times.push({ arm: a, ms: Date.now() - t0, plies: r.moves.length });
       seq[a] = r.moves;
     }
+    // 所有「变体 vs 基准」的组合，外加各变体之间两两对比（A/B 若让两个变体直接对打，
+    // 它俩也必须互不相同才有得测）
+    const pairs = [];
+    for (let i = 1; i < arms.length; i++) pairs.push([arms[i], arms[0]]);
+    for (let i = 1; i < arms.length; i++)
+      for (let j = i + 1; j < arms.length; j++) pairs.push([arms[i], arms[j]]);
     console.log(`${lname} 开局 ${JSON.stringify(op)}`);
-    for (const [x, y] of [['ev3hi','orig'], ['ev3lo','orig'], ['ev3hi','ev3lo']]) {
+    for (const [x, y] of pairs) {
       const d = firstDiff(seq[x], seq[y]);
       if (d < 0 && x !== 'orig') allDiff = false;
       console.log(`   ${(x + ' vs ' + y).padEnd(16)}: ` +

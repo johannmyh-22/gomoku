@@ -191,6 +191,7 @@ const FILTERS = {
   mateply: ORIG_FILTER, mateplykeep: ORIG_FILTER,  // 杀棋分 ply 校正（已合入，变体过期）/ 再叠 TT 跨步保留
   noMatePly: ORIG_FILTER,   // 反向：退回没有 ply 校正（见 EXTRA）
   ev3hi: ORIG_FILTER, ev3lo: ORIG_FILTER,   // 评估函数敏感度诊断：活三权重 ±30%（见 EXTRA）
+  evflat: ORIG_FILTER,                      // 评估轴的阳性对照：压平整张棋型权重表（见 EXTRA）
   off: `  if(false){}`,
   fix: `  if(cfg.rootFilter && cnt>1){
     var cleanChecked=0, lim=cnt<14?cnt:14;
@@ -413,12 +414,35 @@ const PSCORE_ORIG = 'var PSCORE=new Int32Array([0,2,14,20,220,240,3000,20000]);'
 const EV3HI = [[PSCORE_ORIG, 'var PSCORE=new Int32Array([0,2,14,20,286,240,3000,20000]);']];
 const EV3LO = [[PSCORE_ORIG, 'var PSCORE=new Int32Array([0,2,14,20,154,240,3000,20000]);']];
 
+/* ---------- F. 评估轴的阳性对照：压平整张棋型权重表 ----------
+   LV3 实测活三 ±30%（60% 跨度）= 94:106，未能证明敏感。这个 null 有两种
+   完全不同的解释，分不清就往下投算力是浪费：
+     (1) 权重表是杠杆，只是 ±30% 太小；
+     (2) 权重表根本不是杠杆——棋力几乎全来自 VCF/VCT 算杀那层，评估只是摆设。
+
+   区分办法照搬「一之七」的招：**做阳性对照**。那次用「预算翻倍/减半」去验测量台，
+   这次用「大幅破坏评估」去验评估轴本身。破坏比改进便宜，跟「减预算比加预算便宜」同理。
+
+   evflat：把所有非空棋型设成同一个分（10）。于是
+     - evaluate() 退化成「我方有棋型的方向数 − 对方的」，**棋型好坏的知识全没了**
+     - SB/SW 里 `s` 那条回退路径同样退化成纯连接性计数（走法排序也一起变差）
+     - 但 SC_FIVE/SC_OFOUR/SC_44/SC_43/SC_33 这些**战术复合判定不受影响**，
+       VCF/VCT 算杀能力完整保留
+   这正好把「棋型知识」与「算杀能力」分离开。
+
+   判读：
+     - 明显掉棋力 → 解释 (1)，轴是活的，值得去 LV5 精调
+     - **连这个都测不出** → 解释 (2) 坐实，调权重整条路封死，转开局库 / 新特征 */
+const EVFLAT = [[PSCORE_ORIG, 'var PSCORE=new Int32Array([0,10,10,10,10,10,10,10]);']];
+
 const EXTRA = {
   // 【已过期】ply 校正已合入 index.html，改写点不再匹配，build 会报错。留作历史记录。
   mateply: MATEPLY,
   // 评估函数敏感度诊断（见上面 EV3HI / EV3LO 注释）
   ev3hi: [EV3HI[0]],
   ev3lo: [EV3LO[0]],
+  // 评估轴的阳性对照（见上面 EVFLAT 注释）
+  evflat: [EVFLAT[0]],
   // 反向变体：把合入后的引擎退回没有 ply 校正的状态（见 NO_MATEPLY 注释）
   noMatePly: NO_MATEPLY,
   // 杀棋分 ply 校正 + 置换表跨步保留。
