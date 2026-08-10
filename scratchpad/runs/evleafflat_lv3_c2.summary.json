@@ -1,0 +1,18 @@
+{
+  "seed": 20260819,
+  "openingFrom": 25,
+  "openingTo": 50,
+  "arms": [
+    "evleafflat"
+  ],
+  "level": "3",
+  "baseline": "orig",
+  "runControl": false,
+  "results": {
+    "evleafflat vs 出厂orig": {
+      "a": 23,
+      "b": 27,
+      "d": 0
+    }
+  }
+}
