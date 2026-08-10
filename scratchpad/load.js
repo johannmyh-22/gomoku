@@ -192,6 +192,7 @@ const FILTERS = {
   noMatePly: ORIG_FILTER,   // 反向：退回没有 ply 校正（见 EXTRA）
   ev3hi: ORIG_FILTER, ev3lo: ORIG_FILTER,   // 评估函数敏感度诊断：活三权重 ±30%（见 EXTRA）
   evflat: ORIG_FILTER,                      // 评估轴的阳性对照：压平整张棋型权重表（见 EXTRA）
+  evleafflat: ORIG_FILTER,                  // 只压平叶子评估，走法排序不变（见 EXTRA）
   evmix25: ORIG_FILTER, evmix50: ORIG_FILTER, evmix75: ORIG_FILTER,  // 平台测绘（见 EXTRA）
   off: `  if(false){}`,
   fix: `  if(cfg.rootFilter && cnt>1){
@@ -460,6 +461,45 @@ function pscoreMix(t) {
   return 'var PSCORE=new Int32Array([' + w.join(',') + ']);';
 }
 
+/* ---------- H. 拆分叶子评估 vs 走法排序 ----------
+   evflat（−168 Elo）一次动了两个变量：PSCORE 同时喂 totB/totW（evaluate() 的叶子分）
+   和 SB/SW（走法排序 + 双三/四三/双四判定，经 recomb()）。压平后两边一起变差，
+   分不清 168 Elo 主要来自「叶子分不准」还是「排序变差、alpha-beta 剪不动」。
+
+   evleafflat：只压平 totB/totW（新增独立数组 PSCORE_LEAF，只喂 touch()/make() 里
+   更新 totB/totW 的那两处），recomb() 算 SB/SW 时仍用原始 PSCORE，走法排序完全不变。
+
+     结果 ≈ 0     → 叶子分本身无关紧要，168 Elo 全是排序的功劳，
+                     「接复合威胁分进叶子评估」这条路不值得做
+     结果 ≈ −168  → 叶子分确实在起作用，值得继续往这个方向做
+   一次只动一个变量，是本项目「压平权重表」实验唯一没做到、这次补上的一环。 */
+const PSCORE_LEAF_DECL = [
+  PSCORE_ORIG,
+  PSCORE_ORIG + '\nvar PSCORE_LEAF=new Int32Array([0,10,10,10,10,10,10,10]);',
+];
+const TOUCH_ORIG = `function touch(q,k){
+  var i=q*4+k;
+  totB-=PSCORE[PB[i]]; totW-=PSCORE[PW[i]];
+  var c=codeAt(q,D[k]), a=PAT_B[c], b=PAT_W[c];
+  PB[i]=a; PW[i]=b;
+  totB+=PSCORE[a]; totW+=PSCORE[b];
+  recomb(q);
+}`;
+const TOUCH_LEAFFLAT = `function touch(q,k){
+  var i=q*4+k;
+  totB-=PSCORE_LEAF[PB[i]]; totW-=PSCORE_LEAF[PW[i]];
+  var c=codeAt(q,D[k]), a=PAT_B[c], b=PAT_W[c];
+  PB[i]=a; PW[i]=b;
+  totB+=PSCORE_LEAF[a]; totW+=PSCORE_LEAF[b];
+  recomb(q);
+}`;
+const MAKE_ORIG = `function make(p,col){
+  var k,j,d,q,i;
+  for(k=0;k<4;k++){ i=p*4+k; totB-=PSCORE[PB[i]]; totW-=PSCORE[PW[i]]; PB[i]=0; PW[i]=0; }`;
+const MAKE_LEAFFLAT = `function make(p,col){
+  var k,j,d,q,i;
+  for(k=0;k<4;k++){ i=p*4+k; totB-=PSCORE_LEAF[PB[i]]; totW-=PSCORE_LEAF[PW[i]]; PB[i]=0; PW[i]=0; }`;
+
 const EXTRA = {
   // 【已过期】ply 校正已合入 index.html，改写点不再匹配，build 会报错。留作历史记录。
   mateply: MATEPLY,
@@ -468,6 +508,9 @@ const EXTRA = {
   ev3lo: [EV3LO[0]],
   // 评估轴的阳性对照（见上面 EVFLAT 注释）
   evflat: [EVFLAT[0]],
+  // 拆分叶子评估 vs 走法排序（见上面注释）。三处改写：加 PSCORE_LEAF 声明，
+  // touch()/make() 里 totB/totW 改读 PSCORE_LEAF；recomb() 不碰，SB/SW 仍用原始 PSCORE。
+  evleafflat: [PSCORE_LEAF_DECL, [TOUCH_ORIG, TOUCH_LEAFFLAT], [MAKE_ORIG, MAKE_LEAFFLAT]],
   // 平台测绘：出厂 ↔ 压平 之间的插值（见上面 pscoreMix 注释）
   evmix25: [[PSCORE_ORIG, pscoreMix(0.25)]],
   evmix50: [[PSCORE_ORIG, pscoreMix(0.50)]],
