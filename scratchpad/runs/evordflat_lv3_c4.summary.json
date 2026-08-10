@@ -1,0 +1,18 @@
+{
+  "seed": 20260820,
+  "openingFrom": 75,
+  "openingTo": 100,
+  "arms": [
+    "evordflat"
+  ],
+  "level": "3",
+  "baseline": "orig",
+  "runControl": false,
+  "results": {
+    "evordflat vs 出厂orig": {
+      "a": 14,
+      "b": 36,
+      "d": 0
+    }
+  }
+}

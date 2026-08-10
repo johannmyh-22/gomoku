@@ -1,0 +1,62 @@
+{"id":2,"match":"对照 orig vs orig2（必须 6:6）","aWon":false,"len":32,"reason":"five","seed":20260820,"from":0,"to":25,"lvl":"3","base":"orig","a":0,"b":1,"d":0,"elapsed":5}
+{"id":0,"match":"对照 orig vs orig2（必须 6:6）","aWon":false,"len":32,"reason":"five","seed":20260820,"from":0,"to":25,"lvl":"3","base":"orig","a":0,"b":2,"d":0,"elapsed":6}
+{"id":1,"match":"对照 orig vs orig2（必须 6:6）","aWon":true,"len":32,"reason":"five","seed":20260820,"from":0,"to":25,"lvl":"3","base":"orig","a":1,"b":2,"d":0,"elapsed":6}
+{"id":3,"match":"对照 orig vs orig2（必须 6:6）","aWon":true,"len":32,"reason":"five","seed":20260820,"from":0,"to":25,"lvl":"3","base":"orig","a":2,"b":2,"d":0,"elapsed":9}
+{"id":5,"match":"对照 orig vs orig2（必须 6:6）","aWon":true,"len":30,"reason":"five","seed":20260820,"from":0,"to":25,"lvl":"3","base":"orig","a":3,"b":2,"d":0,"elapsed":11}
+{"id":4,"match":"对照 orig vs orig2（必须 6:6）","aWon":false,"len":30,"reason":"five","seed":20260820,"from":0,"to":25,"lvl":"3","base":"orig","a":3,"b":3,"d":0,"elapsed":11}
+{"id":6,"match":"对照 orig vs orig2（必须 6:6）","aWon":true,"len":27,"reason":"five","seed":20260820,"from":0,"to":25,"lvl":"3","base":"orig","a":4,"b":3,"d":0,"elapsed":14}
+{"id":8,"match":"对照 orig vs orig2（必须 6:6）","aWon":true,"len":25,"reason":"five","seed":20260820,"from":0,"to":25,"lvl":"3","base":"orig","a":5,"b":3,"d":0,"elapsed":14}
+{"id":7,"match":"对照 orig vs orig2（必须 6:6）","aWon":false,"len":27,"reason":"five","seed":20260820,"from":0,"to":25,"lvl":"3","base":"orig","a":5,"b":4,"d":0,"elapsed":16}
+{"id":9,"match":"对照 orig vs orig2（必须 6:6）","aWon":false,"len":25,"reason":"five","seed":20260820,"from":0,"to":25,"lvl":"3","base":"orig","a":5,"b":5,"d":0,"elapsed":17}
+{"id":10,"match":"对照 orig vs orig2（必须 6:6）","aWon":true,"len":23,"reason":"five","seed":20260820,"from":0,"to":25,"lvl":"3","base":"orig","a":6,"b":5,"d":0,"elapsed":19}
+{"id":11,"match":"对照 orig vs orig2（必须 6:6）","aWon":false,"len":23,"reason":"five","seed":20260820,"from":0,"to":25,"lvl":"3","base":"orig","a":6,"b":6,"d":0,"elapsed":21}
+{"id":12,"match":"evordflat vs 出厂orig","aWon":true,"len":39,"reason":"five","seed":20260820,"from":0,"to":25,"lvl":"3","base":"orig","a":1,"b":0,"d":0,"elapsed":22}
+{"id":13,"match":"evordflat vs 出厂orig","aWon":false,"len":27,"reason":"five","seed":20260820,"from":0,"to":25,"lvl":"3","base":"orig","a":1,"b":1,"d":0,"elapsed":26}
+{"id":14,"match":"evordflat vs 出厂orig","aWon":false,"len":38,"reason":"five","seed":20260820,"from":0,"to":25,"lvl":"3","base":"orig","a":1,"b":2,"d":0,"elapsed":27}
+{"id":15,"match":"evordflat vs 出厂orig","aWon":false,"len":49,"reason":"five","seed":20260820,"from":0,"to":25,"lvl":"3","base":"orig","a":1,"b":3,"d":0,"elapsed":30}
+{"id":16,"match":"evordflat vs 出厂orig","aWon":true,"len":47,"reason":"five","seed":20260820,"from":0,"to":25,"lvl":"3","base":"orig","a":2,"b":3,"d":0,"elapsed":33}
+{"id":17,"match":"evordflat vs 出厂orig","aWon":false,"len":27,"reason":"five","seed":20260820,"from":0,"to":25,"lvl":"3","base":"orig","a":2,"b":4,"d":0,"elapsed":33}
+{"id":19,"match":"evordflat vs 出厂orig","aWon":false,"len":21,"reason":"five","seed":20260820,"from":0,"to":25,"lvl":"3","base":"orig","a":2,"b":5,"d":0,"elapsed":37}
+{"id":20,"match":"evordflat vs 出厂orig","aWon":false,"len":30,"reason":"five","seed":20260820,"from":0,"to":25,"lvl":"3","base":"orig","a":2,"b":6,"d":0,"elapsed":39}
+{"id":21,"match":"evordflat vs 出厂orig","aWon":false,"len":25,"reason":"five","seed":20260820,"from":0,"to":25,"lvl":"3","base":"orig","a":2,"b":7,"d":0,"elapsed":42}
+{"id":22,"match":"evordflat vs 出厂orig","aWon":true,"len":21,"reason":"five","seed":20260820,"from":0,"to":25,"lvl":"3","base":"orig","a":3,"b":7,"d":0,"elapsed":49}
+{"id":23,"match":"evordflat vs 出厂orig","aWon":false,"len":23,"reason":"five","seed":20260820,"from":0,"to":25,"lvl":"3","base":"orig","a":3,"b":8,"d":0,"elapsed":51}
+{"id":25,"match":"evordflat vs 出厂orig","aWon":false,"len":21,"reason":"five","seed":20260820,"from":0,"to":25,"lvl":"3","base":"orig","a":3,"b":9,"d":0,"elapsed":56}
+{"id":18,"match":"evordflat vs 出厂orig","aWon":false,"len":80,"reason":"five","seed":20260820,"from":0,"to":25,"lvl":"3","base":"orig","a":3,"b":10,"d":0,"elapsed":58}
+{"id":24,"match":"evordflat vs 出厂orig","aWon":true,"len":35,"reason":"five","seed":20260820,"from":0,"to":25,"lvl":"3","base":"orig","a":4,"b":10,"d":0,"elapsed":61}
+{"id":26,"match":"evordflat vs 出厂orig","aWon":false,"len":32,"reason":"five","seed":20260820,"from":0,"to":25,"lvl":"3","base":"orig","a":4,"b":11,"d":0,"elapsed":63}
+{"id":27,"match":"evordflat vs 出厂orig","aWon":false,"len":31,"reason":"five","seed":20260820,"from":0,"to":25,"lvl":"3","base":"orig","a":4,"b":12,"d":0,"elapsed":64}
+{"id":28,"match":"evordflat vs 出厂orig","aWon":true,"len":25,"reason":"five","seed":20260820,"from":0,"to":25,"lvl":"3","base":"orig","a":5,"b":12,"d":0,"elapsed":65}
+{"id":29,"match":"evordflat vs 出厂orig","aWon":false,"len":25,"reason":"five","seed":20260820,"from":0,"to":25,"lvl":"3","base":"orig","a":5,"b":13,"d":0,"elapsed":66}
+{"id":31,"match":"evordflat vs 出厂orig","aWon":false,"len":33,"reason":"five","seed":20260820,"from":0,"to":25,"lvl":"3","base":"orig","a":5,"b":14,"d":0,"elapsed":70}
+{"id":32,"match":"evordflat vs 出厂orig","aWon":true,"len":35,"reason":"five","seed":20260820,"from":0,"to":25,"lvl":"3","base":"orig","a":6,"b":14,"d":0,"elapsed":73}
+{"id":33,"match":"evordflat vs 出厂orig","aWon":false,"len":23,"reason":"five","seed":20260820,"from":0,"to":25,"lvl":"3","base":"orig","a":6,"b":15,"d":0,"elapsed":74}
+{"id":30,"match":"evordflat vs 出厂orig","aWon":true,"len":75,"reason":"five","seed":20260820,"from":0,"to":25,"lvl":"3","base":"orig","a":7,"b":15,"d":0,"elapsed":77}
+{"id":35,"match":"evordflat vs 出厂orig","aWon":false,"len":27,"reason":"five","seed":20260820,"from":0,"to":25,"lvl":"3","base":"orig","a":7,"b":16,"d":0,"elapsed":78}
+{"id":36,"match":"evordflat vs 出厂orig","aWon":false,"len":26,"reason":"five","seed":20260820,"from":0,"to":25,"lvl":"3","base":"orig","a":7,"b":17,"d":0,"elapsed":82}
+{"id":37,"match":"evordflat vs 出厂orig","aWon":false,"len":21,"reason":"five","seed":20260820,"from":0,"to":25,"lvl":"3","base":"orig","a":7,"b":18,"d":0,"elapsed":83}
+{"id":39,"match":"evordflat vs 出厂orig","aWon":true,"len":30,"reason":"five","seed":20260820,"from":0,"to":25,"lvl":"3","base":"orig","a":8,"b":18,"d":0,"elapsed":88}
+{"id":38,"match":"evordflat vs 出厂orig","aWon":true,"len":39,"reason":"five","seed":20260820,"from":0,"to":25,"lvl":"3","base":"orig","a":9,"b":18,"d":0,"elapsed":89}
+{"id":34,"match":"evordflat vs 出厂orig","aWon":false,"len":60,"reason":"five","seed":20260820,"from":0,"to":25,"lvl":"3","base":"orig","a":9,"b":19,"d":0,"elapsed":90}
+{"id":40,"match":"evordflat vs 出厂orig","aWon":false,"len":30,"reason":"five","seed":20260820,"from":0,"to":25,"lvl":"3","base":"orig","a":9,"b":20,"d":0,"elapsed":93}
+{"id":41,"match":"evordflat vs 出厂orig","aWon":false,"len":27,"reason":"five","seed":20260820,"from":0,"to":25,"lvl":"3","base":"orig","a":9,"b":21,"d":0,"elapsed":93}
+{"id":42,"match":"evordflat vs 出厂orig","aWon":true,"len":25,"reason":"five","seed":20260820,"from":0,"to":25,"lvl":"3","base":"orig","a":10,"b":21,"d":0,"elapsed":94}
+{"id":44,"match":"evordflat vs 出厂orig","aWon":true,"len":27,"reason":"five","seed":20260820,"from":0,"to":25,"lvl":"3","base":"orig","a":11,"b":21,"d":0,"elapsed":99}
+{"id":45,"match":"evordflat vs 出厂orig","aWon":false,"len":39,"reason":"five","seed":20260820,"from":0,"to":25,"lvl":"3","base":"orig","a":11,"b":22,"d":0,"elapsed":99}
+{"id":43,"match":"evordflat vs 出厂orig","aWon":false,"len":39,"reason":"five","seed":20260820,"from":0,"to":25,"lvl":"3","base":"orig","a":11,"b":23,"d":0,"elapsed":102}
+{"id":46,"match":"evordflat vs 出厂orig","aWon":true,"len":21,"reason":"five","seed":20260820,"from":0,"to":25,"lvl":"3","base":"orig","a":12,"b":23,"d":0,"elapsed":102}
+{"id":47,"match":"evordflat vs 出厂orig","aWon":false,"len":29,"reason":"five","seed":20260820,"from":0,"to":25,"lvl":"3","base":"orig","a":12,"b":24,"d":0,"elapsed":102}
+{"id":49,"match":"evordflat vs 出厂orig","aWon":false,"len":25,"reason":"five","seed":20260820,"from":0,"to":25,"lvl":"3","base":"orig","a":12,"b":25,"d":0,"elapsed":105}
+{"id":48,"match":"evordflat vs 出厂orig","aWon":false,"len":28,"reason":"five","seed":20260820,"from":0,"to":25,"lvl":"3","base":"orig","a":12,"b":26,"d":0,"elapsed":107}
+{"id":51,"match":"evordflat vs 出厂orig","aWon":false,"len":21,"reason":"five","seed":20260820,"from":0,"to":25,"lvl":"3","base":"orig","a":12,"b":27,"d":0,"elapsed":108}
+{"id":50,"match":"evordflat vs 出厂orig","aWon":false,"len":26,"reason":"five","seed":20260820,"from":0,"to":25,"lvl":"3","base":"orig","a":12,"b":28,"d":0,"elapsed":108}
+{"id":53,"match":"evordflat vs 出厂orig","aWon":false,"len":21,"reason":"five","seed":20260820,"from":0,"to":25,"lvl":"3","base":"orig","a":12,"b":29,"d":0,"elapsed":111}
+{"id":52,"match":"evordflat vs 出厂orig","aWon":true,"len":33,"reason":"five","seed":20260820,"from":0,"to":25,"lvl":"3","base":"orig","a":13,"b":29,"d":0,"elapsed":114}
+{"id":55,"match":"evordflat vs 出厂orig","aWon":false,"len":29,"reason":"five","seed":20260820,"from":0,"to":25,"lvl":"3","base":"orig","a":13,"b":30,"d":0,"elapsed":115}
+{"id":57,"match":"evordflat vs 出厂orig","aWon":false,"len":25,"reason":"five","seed":20260820,"from":0,"to":25,"lvl":"3","base":"orig","a":13,"b":31,"d":0,"elapsed":118}
+{"id":54,"match":"evordflat vs 出厂orig","aWon":true,"len":43,"reason":"five","seed":20260820,"from":0,"to":25,"lvl":"3","base":"orig","a":14,"b":31,"d":0,"elapsed":119}
+{"id":59,"match":"evordflat vs 出厂orig","aWon":false,"len":27,"reason":"five","seed":20260820,"from":0,"to":25,"lvl":"3","base":"orig","a":14,"b":32,"d":0,"elapsed":123}
+{"id":58,"match":"evordflat vs 出厂orig","aWon":false,"len":28,"reason":"five","seed":20260820,"from":0,"to":25,"lvl":"3","base":"orig","a":14,"b":33,"d":0,"elapsed":123}
+{"id":60,"match":"evordflat vs 出厂orig","aWon":false,"len":26,"reason":"five","seed":20260820,"from":0,"to":25,"lvl":"3","base":"orig","a":14,"b":34,"d":0,"elapsed":127}
+{"id":61,"match":"evordflat vs 出厂orig","aWon":false,"len":23,"reason":"five","seed":20260820,"from":0,"to":25,"lvl":"3","base":"orig","a":14,"b":35,"d":0,"elapsed":127}
+{"id":56,"match":"evordflat vs 出厂orig","aWon":false,"len":76,"reason":"five","seed":20260820,"from":0,"to":25,"lvl":"3","base":"orig","a":14,"b":36,"d":0,"elapsed":136}
