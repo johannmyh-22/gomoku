@@ -190,6 +190,7 @@ const FILTERS = {
   deeppartial: ORIG_FILTER, lv5all: ORIG_FILTER,
   mateply: ORIG_FILTER, mateplykeep: ORIG_FILTER,  // 杀棋分 ply 校正（已合入，变体过期）/ 再叠 TT 跨步保留
   noMatePly: ORIG_FILTER,   // 反向：退回没有 ply 校正（见 EXTRA）
+  ev3hi: ORIG_FILTER, ev3lo: ORIG_FILTER,   // 评估函数敏感度诊断：活三权重 ±30%（见 EXTRA）
   off: `  if(false){}`,
   fix: `  if(cfg.rootFilter && cnt>1){
     var cleanChecked=0, lim=cnt<14?cnt:14;
@@ -392,9 +393,32 @@ const NO_MATEPLY = [
    '  ttKey[ti]=hash2; ttSide[ti]=side; ttVal[ti]=best; ttDepth[ti]=depth>127?127:depth;'],
 ];
 
+/* ---------- E. 评估函数敏感度诊断：活三权重 ±30% ----------
+   PROGRESS「一之七」把搜索侧整类方向划掉后，评估函数是唯一没被证伪的方向。
+   但在直接调权重之前，得先回答「权重到底是不是杠杆」——所以先做敏感度诊断。
+
+   权重表就一行：PSCORE=[0, 2, 14, 20, 220, 240, 3000, 20000]
+                        无 活二 眠三? 眠三 活三 冲四 活四   五
+
+   为什么挑活三（220）而不是别的：
+   1. **整体缩放全表是纯空操作**（分数只用于比大小），必须动相对权重，即某个单项。
+   2. 活三在中局几乎每手都出现，是安静局面里评估分的主要来源。
+   3. 邻居是 冲四=240。±30% 后 286 / 154 分别**跨过**这条线：
+      +30% 活三压过冲四、−30% 活三低于冲四。这是质变不是微调，
+      基本保证不会是空操作（仍会按规矩实测验证，教训见 PROGRESS「接手最容易犯的错」第 4 条）。
+
+   实验设计是 **ev3hi 直接对打 ev3lo**（60% 跨度），不是各自 vs 出厂：
+   单次实验拿到最大对比度。连这个都测不出差异 → 权重不是杠杆，结论够硬。 */
+const PSCORE_ORIG = 'var PSCORE=new Int32Array([0,2,14,20,220,240,3000,20000]);';
+const EV3HI = [[PSCORE_ORIG, 'var PSCORE=new Int32Array([0,2,14,20,286,240,3000,20000]);']];
+const EV3LO = [[PSCORE_ORIG, 'var PSCORE=new Int32Array([0,2,14,20,154,240,3000,20000]);']];
+
 const EXTRA = {
   // 【已过期】ply 校正已合入 index.html，改写点不再匹配，build 会报错。留作历史记录。
   mateply: MATEPLY,
+  // 评估函数敏感度诊断（见上面 EV3HI / EV3LO 注释）
+  ev3hi: [EV3HI[0]],
+  ev3lo: [EV3LO[0]],
   // 反向变体：把合入后的引擎退回没有 ply 校正的状态（见 NO_MATEPLY 注释）
   noMatePly: NO_MATEPLY,
   // 杀棋分 ply 校正 + 置换表跨步保留。

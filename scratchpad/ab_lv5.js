@@ -44,8 +44,19 @@ const OUTFILE = argVal('out', '');
 // 逐项照抄 index.html 的 LEVELS[5]
 const LV5 = { timeMs: 9000, maxDepth: 18, vcfDepth: 20, vcfBudget: 1200000, vctDepth: 9,
   vctBudget: 1500000, vctDefDepth: 7, vctDefBudget: 150000, rand: 0, rootFilter: true, forbid: false };
+// 逐项照抄 index.html 的 LEVELS[3]（困难）——硬规矩之二：配置必须与出厂值一致
+const LV3 = { timeMs: 1500, maxDepth: 8, vcfDepth: 10, vcfBudget: 120000, vctDepth: 5,
+  vctBudget: 80000, vctDefDepth: 0, vctDefBudget: 0, rand: 0, rootFilter: false, forbid: false };
 
-build('orig'); build('orig2');
+// --level / --baseline 都有保持原行为的默认值：不带这两个参数时，本脚本与
+// 加它们之前逐字节等价（LV5、变体对打 orig），上一轮的实验仍可原样复现。
+const LEVEL = String(argVal('level', '5'));
+const CFG = LEVEL === '3' ? LV3 : LV5;
+// 基准臂。默认 orig（候选 vs 出厂）；敏感度诊断这类实验要让两个变体直接对打，
+// 例如 --arms=ev3hi --baseline=ev3lo。
+const BASELINE = argVal('baseline', 'orig');
+
+build('orig'); build('orig2'); build(BASELINE);
 for (const a of ARMS) build(a);
 
 // 开局种子。重跑同一个假设时**必须换种子**，否则用的是已经看过结果的那批开局，
@@ -70,7 +81,7 @@ function genOpenings(n) {
 function buildJobs(matchName, modA, modB, openings) {
   const jobs = [];
   for (const op of openings) for (let swap = 0; swap < 2; swap++)
-    jobs.push({ type: 'game', matchName, modA, modB, cfgA: LV5, cfgB: LV5, opening: op, swap });
+    jobs.push({ type: 'game', matchName, modA, modB, cfgA: CFG, cfgB: CFG, opening: op, swap });
   return jobs;
 }
 
@@ -80,10 +91,11 @@ const ctrlOps = genOpenings(CTRL_OPENINGS), abOpsAll = genOpenings(AB_OPENINGS);
 const abOps = abOpsAll.slice(OP_FROM, OP_TO === null ? AB_OPENINGS : OP_TO);
 const jobs = RUN_CONTROL
   ? [ ...buildJobs('对照 orig vs orig2（必须 6:6）', 'orig', 'orig2', ctrlOps) ] : [];
-for (const a of ARMS) jobs.push(...buildJobs(`${a} vs 出厂orig`, a, 'orig', abOps));
+for (const a of ARMS) jobs.push(...buildJobs(
+  `${a} vs ${BASELINE === 'orig' ? '出厂orig' : BASELINE}`, a, BASELINE, abOps));
 jobs.forEach((j, i) => { j.id = i; });
 
-console.log(`LV5 出厂配置：共 ${jobs.length} 局，${WORKERS} 个并行进程`);
+console.log(`LV${LEVEL} 出厂配置：共 ${jobs.length} 局，${WORKERS} 个并行进程`);
 console.log(`对照 ${RUN_CONTROL ? ctrlOps.length * 2 : 0} 局 + ${ARMS.length} 个变体 x ${abOps.length * 2} 局` +
   `（开局下标 [${OP_FROM},${OP_TO === null ? AB_OPENINGS : OP_TO}) / 共 ${AB_OPENINGS}，种子 ${SEED0}）`);
 console.log(`变体：${ARMS.join(', ')}\n`);
@@ -105,6 +117,9 @@ if (OUTFILE && fs.existsSync(OUTFILE)) {
     if (o.id === undefined) { bad++; continue; }          // 旧格式没记 id，无法续跑
     if (o.seed !== SEED0 || o.from !== OP_FROM ||
         o.to !== (OP_TO === null ? AB_OPENINGS : OP_TO)) { bad++; continue; }
+    // 档位/基准臂也进指纹：换了档还接着续跑，会把两个引擎的战绩静默拌在一起。
+    // 旧文件没有这两个字段，按它们当时的固定行为（LV5 / orig）补默认值，不影响复现。
+    if (String(o.lvl ?? '5') !== LEVEL || (o.base ?? 'orig') !== BASELINE) { bad++; continue; }
     if (doneIds.has(o.id)) continue;
     doneIds.add(o.id);
     const r = results[o.match] || (results[o.match] = { a: 0, b: 0, d: 0 });
@@ -153,6 +168,7 @@ for (let i = 0; i < WORKERS; i++) {
         fs.appendFileSync(OUTFILE, JSON.stringify({
           id: msg.id, match: msg.matchName, aWon: msg.aWon, len: msg.len, reason: msg.reason,
           seed: SEED0, from: OP_FROM, to: OP_TO === null ? AB_OPENINGS : OP_TO,
+          lvl: LEVEL, base: BASELINE,
           a: r.a, b: r.b, d: r.d, elapsed: Number(el),
         }) + '\n');
       } catch (e) { /* 落盘失败不该把实验带崩 */ }
@@ -172,7 +188,7 @@ function finish() {
     try {
       fs.writeFileSync(OUTFILE.replace(/\.jsonl?$/, '') + '.summary.json',
         JSON.stringify({ seed: SEED0, openingFrom: OP_FROM, openingTo: OP_TO, arms: ARMS,
-          runControl: RUN_CONTROL, results }, null, 2));
+          level: LEVEL, baseline: BASELINE, runControl: RUN_CONTROL, results }, null, 2));
     } catch (e) { /* 同上 */ }
   }
   workers.forEach(sendExit);
