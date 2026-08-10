@@ -1,0 +1,18 @@
+{
+  "seed": 20260816,
+  "openingFrom": 25,
+  "openingTo": 50,
+  "arms": [
+    "ev3hi"
+  ],
+  "level": "3",
+  "baseline": "ev3lo",
+  "runControl": false,
+  "results": {
+    "ev3hi vs ev3lo": {
+      "a": 23,
+      "b": 27,
+      "d": 0
+    }
+  }
+}
