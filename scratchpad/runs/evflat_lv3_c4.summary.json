@@ -1,0 +1,18 @@
+{
+  "seed": 20260817,
+  "openingFrom": 75,
+  "openingTo": 100,
+  "arms": [
+    "evflat"
+  ],
+  "level": "3",
+  "baseline": "orig",
+  "runControl": false,
+  "results": {
+    "evflat vs 出厂orig": {
+      "a": 9,
+      "b": 41,
+      "d": 0
+    }
+  }
+}
