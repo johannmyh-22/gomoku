@@ -1,0 +1,45 @@
+{
+  "seed": 20260814,
+  "level": 5,
+  "mul": 0.25,
+  "base": {
+    "timeMs": 9000,
+    "maxDepth": 18,
+    "vcfDepth": 20,
+    "vcfBudget": 1200000,
+    "vctDepth": 9,
+    "vctBudget": 1500000,
+    "vctDefDepth": 7,
+    "vctDefBudget": 150000,
+    "rand": 0,
+    "rootFilter": true,
+    "forbid": false
+  },
+  "big": {
+    "timeMs": 2250,
+    "maxDepth": 18,
+    "vcfDepth": 20,
+    "vcfBudget": 300000,
+    "vctDepth": 9,
+    "vctBudget": 375000,
+    "vctDefDepth": 7,
+    "vctDefBudget": 37500,
+    "rand": 0,
+    "rootFilter": true,
+    "forbid": false
+  },
+  "openingFrom": 0,
+  "openingTo": null,
+  "results": {
+    "对照 出厂 vs 出厂（必须 6:6）": {
+      "a": 6,
+      "b": 6,
+      "d": 0
+    },
+    "0.25倍预算 vs 出厂": {
+      "a": 25,
+      "b": 25,
+      "d": 0
+    }
+  }
+}
