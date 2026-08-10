@@ -193,6 +193,7 @@ const FILTERS = {
   ev3hi: ORIG_FILTER, ev3lo: ORIG_FILTER,   // 评估函数敏感度诊断：活三权重 ±30%（见 EXTRA）
   evflat: ORIG_FILTER,                      // 评估轴的阳性对照：压平整张棋型权重表（见 EXTRA）
   evleafflat: ORIG_FILTER,                  // 只压平叶子评估，走法排序不变（见 EXTRA）
+  evordflat: ORIG_FILTER,                   // 只压平走法排序，叶子评估不变（见 EXTRA）
   evmix25: ORIG_FILTER, evmix50: ORIG_FILTER, evmix75: ORIG_FILTER,  // 平台测绘（见 EXTRA）
   off: `  if(false){}`,
   fix: `  if(cfg.rootFilter && cnt>1){
@@ -500,6 +501,41 @@ const MAKE_LEAFFLAT = `function make(p,col){
   var k,j,d,q,i;
   for(k=0;k<4;k++){ i=p*4+k; totB-=PSCORE_LEAF[PB[i]]; totW-=PSCORE_LEAF[PW[i]]; PB[i]=0; PW[i]=0; }`;
 
+/* ---------- I. evleafflat 的对称面：只压平走法排序，叶子分不变 ----------
+   evleafflat（−26 Elo，z=−1.06，未能证明）只提示、没坐实「排序是 168 Elo 的主因」——
+   两个实验的点估计比较不是可加性分解，交互效应完全没测。
+   要坐实，需要对称的另一半：只压平 recomb() 算的 SB/SW（走法排序权重的非战术部分），
+   touch()/make() 的 totB/totW（叶子分）保持原始 PSCORE 不变。
+
+   跟 evflat 一样，SC_FIVE/SC_OFOUR/SC_44/SC_43/SC_33 这些战术复合判定（真五、活四、
+   双四、四三、双三）完全不受影响——只压平 fallback 的 `s`（非战术棋型的排序权重）。
+
+     结果接近 evflat 的 −168 Elo → 排序坐实是主因，叶子分可能真的无关紧要
+     结果接近 evleafflat 的 −26（不显著）→ 单独动任何一边都不够，说明是交互效应，
+       两个变量分开测的思路本身需要重新想 */
+const RECOMB_ORIG = `function recomb(q){
+  var b=q*4,k,t,s,five,of,fo,ot;
+  s=0;five=0;of=0;fo=0;ot=0;
+  for(k=0;k<4;k++){ t=PB[b+k]; s+=PSCORE[t];
+    if(t===P_FIVE)five++; else if(t===P_OFOUR)of++; else if(t===P_FOUR)fo++; else if(t===P_OTHREE)ot++; }
+  SB[q]= five?SC_FIVE:(of?SC_OFOUR:(fo>=2?SC_44:((fo&&ot)?SC_43:(ot>=2?SC_33:s))));
+  s=0;five=0;of=0;fo=0;ot=0;
+  for(k=0;k<4;k++){ t=PW[b+k]; s+=PSCORE[t];
+    if(t===P_FIVE)five++; else if(t===P_OFOUR)of++; else if(t===P_FOUR)fo++; else if(t===P_OTHREE)ot++; }
+  SW[q]= five?SC_FIVE:(of?SC_OFOUR:(fo>=2?SC_44:((fo&&ot)?SC_43:(ot>=2?SC_33:s))));
+}`;
+const RECOMB_ORDFLAT = `function recomb(q){
+  var b=q*4,k,t,s,five,of,fo,ot;
+  s=0;five=0;of=0;fo=0;ot=0;
+  for(k=0;k<4;k++){ t=PB[b+k]; s+=PSCORE_LEAF[t];
+    if(t===P_FIVE)five++; else if(t===P_OFOUR)of++; else if(t===P_FOUR)fo++; else if(t===P_OTHREE)ot++; }
+  SB[q]= five?SC_FIVE:(of?SC_OFOUR:(fo>=2?SC_44:((fo&&ot)?SC_43:(ot>=2?SC_33:s))));
+  s=0;five=0;of=0;fo=0;ot=0;
+  for(k=0;k<4;k++){ t=PW[b+k]; s+=PSCORE_LEAF[t];
+    if(t===P_FIVE)five++; else if(t===P_OFOUR)of++; else if(t===P_FOUR)fo++; else if(t===P_OTHREE)ot++; }
+  SW[q]= five?SC_FIVE:(of?SC_OFOUR:(fo>=2?SC_44:((fo&&ot)?SC_43:(ot>=2?SC_33:s))));
+}`;
+
 const EXTRA = {
   // 【已过期】ply 校正已合入 index.html，改写点不再匹配，build 会报错。留作历史记录。
   mateply: MATEPLY,
@@ -511,6 +547,8 @@ const EXTRA = {
   // 拆分叶子评估 vs 走法排序（见上面注释）。三处改写：加 PSCORE_LEAF 声明，
   // touch()/make() 里 totB/totW 改读 PSCORE_LEAF；recomb() 不碰，SB/SW 仍用原始 PSCORE。
   evleafflat: [PSCORE_LEAF_DECL, [TOUCH_ORIG, TOUCH_LEAFFLAT], [MAKE_ORIG, MAKE_LEAFFLAT]],
+  // evleafflat 的对称面（见上面注释）：只压平 recomb()，touch()/make() 不碰。
+  evordflat: [PSCORE_LEAF_DECL, [RECOMB_ORIG, RECOMB_ORDFLAT]],
   // 平台测绘：出厂 ↔ 压平 之间的插值（见上面 pscoreMix 注释）
   evmix25: [[PSCORE_ORIG, pscoreMix(0.25)]],
   evmix50: [[PSCORE_ORIG, pscoreMix(0.50)]],
