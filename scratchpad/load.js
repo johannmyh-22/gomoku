@@ -190,6 +190,8 @@ const FILTERS = {
   deeppartial: ORIG_FILTER, lv5all: ORIG_FILTER,
   mateply: ORIG_FILTER, mateplykeep: ORIG_FILTER,  // 杀棋分 ply 校正（已合入，变体过期）/ 再叠 TT 跨步保留
   noMatePly: ORIG_FILTER,   // 反向：退回没有 ply 校正（见 EXTRA）
+  eval3p: ORIG_FILTER,      // 评估敏感度诊断：活三权重 +30%（见 EXTRA）
+  eval3m: ORIG_FILTER,      // 评估敏感度诊断：活三权重 -30%（见 EXTRA）
   off: `  if(false){}`,
   fix: `  if(cfg.rootFilter && cnt>1){
     var cleanChecked=0, lim=cnt<14?cnt:14;
@@ -432,6 +434,14 @@ const EXTRA = {
   // 两者必须配对：放宽阈值去够更深的一层，再把超时那层搜完的部分捡回来。
   deeppartial: [DEEPER, PARTIAL],
   lv5all: [ROOTSORT, DEEPER, PARTIAL],
+  // 评估敏感度诊断（PROGRESS「六、待办 1」第一步）：先 ±30% 测活三权重是不是杠杆，
+  // 别直接调权重。若两个方向都不显著 → 权重不是杠杆，换更大思路（开局库 / 换评估）。
+  // 只改全局 PSCORE[3]（活三 220 → 286 / 154）；测量只跑 LV5（ab_lv5.js）。
+  // 若证明有收益，合入时再做成 LEVELS[5] 专属参数，隔离其他档位。
+  eval3p: [['var PSCORE=new Int32Array([0,2,14,20,220,240,3000,20000]);',
+             'var PSCORE=new Int32Array([0,2,14,20,286,240,3000,20000]);']],
+  eval3m: [['var PSCORE=new Int32Array([0,2,14,20,220,240,3000,20000]);',
+             'var PSCORE=new Int32Array([0,2,14,20,154,240,3000,20000]);']],
 };
 
 function build(variant) {
