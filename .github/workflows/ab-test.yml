@@ -1,0 +1,103 @@
+# 五子棋 A/B 实验 —— 云端跑（GitHub Actions）
+#
+# 用途：把 scratchpad/ 里的确定性自检 + A/B 自战搬到 GitHub 云端跑，
+#       关机不影响。跑完结果存成 artifact，在 Actions 页面下载。
+#
+# 触发：仓库 → Actions → "gomoku A/B" → Run workflow（可填参数）。
+#
+# 硬规矩（来自 PROGRESS.md，跑之前必读）：
+#   1. A/B 前先看同引擎对照，必须 6:6，否则还有别的随机源，结果不可信。
+#   2. 被测变体必须与 LEVELS 出厂值一致（ab_lv5.js 里 LV5 已逐项照抄）。
+#   3. 重跑同一个假设必须换 --seed，否则新旧开局不独立，合并会假性收窄置信区间。
+#   4. 别看到比分偏正就追加局数到显著 —— 那是 p-hacking。
+#
+# 注意：本 job 单次上限约 6 小时。默认参数是「快速摸底」（每臂 12 局）。
+#       要跑数百局的长实验，用 --openingFrom/--openingTo 分块，多次 dispatch，
+#       每块结果下载后本地用 pool_prereg.js 合并判定。
+
+name: gomoku A/B
+
+on:
+  workflow_dispatch:
+    inputs:
+      arms:
+        description: '变体列表，逗号分隔（load.js 注册的，如 rootsort,noTT,mateplykeep）'
+        required: false
+        default: 'rootsort'
+      openings:
+        description: '每臂开局数（每臂 = 2×openings 局）'
+        required: false
+        default: '6'
+      control_openings:
+        description: '对照开局数（对照 = 2× 局，必须 6:6）'
+        required: false
+        default: '6'
+      seed:
+        description: '开局种子（重跑同一假设要换）'
+        required: false
+        default: '20260811'
+      opening_from:
+        description: '分块起点下标（长跑用，留空=0）'
+        required: false
+        default: '0'
+      opening_to:
+        description: '分块终点下标（留空=用满 openings）'
+        required: false
+        default: ''
+      workers:
+        description: '并行进程数（0=自动取 CPU 数）'
+        required: false
+        default: '0'
+
+permissions:
+  contents: read
+
+jobs:
+  ab:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # 确定性自检：同一局跑两遍，走法必须逐字节相同。
+      # 这是所有 A/B 的前置条件 —— 若 identical:false，说明还有随机源。
+      - name: 确定性自检（det.js）
+        working-directory: scratchpad
+        run: node det.js
+
+      # 同引擎对照（orig vs orig2，必须 6:6）+ 各变体 vs 出厂，结果实时落盘 run.jsonl。
+      - name: 同引擎对照 + A/B
+        working-directory: scratchpad
+        run: |
+          WORKERS="${{ inputs.workers }}"
+          [ "$WORKERS" = "0" ] && WORKERS="$(nproc)"
+          ARGS=(--arms="${{ inputs.arms }}"
+                --openings="${{ inputs.openings }}"
+                --controlOpenings="${{ inputs.control_openings }}"
+                --seed="${{ inputs.seed }}"
+                --workers="$WORKERS"
+                --out=run.jsonl)
+          if [ -n "${{ inputs.opening_from }}" ]; then
+            ARGS+=(--openingFrom="${{ inputs.opening_from }}")
+          fi
+          if [ -n "${{ inputs.opening_to }}" ]; then
+            ARGS+=(--openingTo="${{ inputs.opening_to }}")
+          fi
+          node ab_lv5.js "${ARGS[@]}"
+
+      # 无论成功失败都尽量把结果带出来（失败时 run.jsonl 可能有部分结果）。
+      - name: 上传结果
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ab-results-${{ github.run_number }}
+          path: |
+            scratchpad/run.jsonl
+            scratchpad/run.summary.json
+          if-no-files-found: ignore
